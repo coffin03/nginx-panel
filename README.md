@@ -14,9 +14,20 @@
 - **日志查看**：直接读取 nginx 的 `logs` 目录，支持自动刷新与关键字过滤。
 - **完全本地**：SQLite（WAL）保存数据，bcrypt 保存密码，首次启动向导创建管理员账号。
 
+## 下载（稳定版）
+
+Windows 用户不需要安装 Python / Node，直接下载打包好的便携版：
+
+1. 打开 [Releases](../../releases/latest)，下载 `nginx-panel-<版本>-win64.zip`。
+2. 解压后双击 `nginx-panel.exe` 运行，无需安装（压缩包内含 `LICENSE.txt`）。
+3. 可选校验：把 `SHA256SUMS.txt` 与压缩包放在同一目录，执行
+   `certutil -hashfile nginx-panel-0.1.0-win64.zip SHA256`，与文件中的值比对。
+
+当前版本：**0.1.0**，变更记录见 [CHANGELOG.md](CHANGELOG.md)。Linux / Docker 部署见下方对应章节。
+
 ## 快速开始（Windows）
 
-1. 从 Releases 下载 `nginx-panel.exe`（或自行构建，见下文）。
+1. 从上方 Releases 下载并解压，或自行构建（见下文）。
 2. 双击运行，会打开一个独立的桌面窗口（内嵌 WebView2，不经过系统浏览器）；关闭窗口即退出程序。
 3. 首次打开设置管理员账号。
 4. 点击「添加实例」，填写：
@@ -109,6 +120,25 @@ powershell -ExecutionPolicy Bypass -File packaging\build-windows.ps1
 python -m pytest
 ```
 
+## 发布新版本
+
+1. 更新 `server/nginx_panel/__init__.py` 的 `__version__`、`web/package.json` 的 `version`，并在 `CHANGELOG.md` 补一条记录。
+2. 提交后打标签并推送：
+
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
+3. GitHub Actions（[.github/workflows/release.yml](.github/workflows/release.yml)）会自动运行测试、构建前端与 exe、生成 `nginx-panel-<版本>-win64.zip` 与 `SHA256SUMS.txt`，并创建对应的 Release。
+
+本地复现同一套产物：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File packaging\make-release.ps1
+# 产物：dist\nginx-panel-<版本>-win64.zip 与 dist\SHA256SUMS.txt
+```
+
 ## 工作方式
 
 - **解析而不是正则替换**：自研 nginx 配置解析器为每条指令记录文件、偏移、行号；编辑时只替换最小文本区间，不重新序列化整个文件，因此缩进、对齐和注释都能保留。
@@ -126,8 +156,9 @@ server/            FastAPI 后端
     api/            REST 接口
     core/           SQLite、认证、路径与配置、文件监听
 web/               Vue 3 + Element Plus + CodeMirror 6 前端
-packaging/         PyInstaller 打包配置
+packaging/         PyInstaller 打包配置与发布脚本
 deploy/            Linux 安装脚本与 systemd unit
+.github/           CI 与 Release 工作流
 tests/             解析器与接口测试
 ```
 
@@ -136,6 +167,10 @@ tests/             解析器与接口测试
 - 面板默认只监听 `127.0.0.1`。如需对外开放，请放在带 HTTPS 的反向代理之后，并设置强密码。
 - Linux 安装脚本使用 root 运行面板（需要写 nginx 配置并调用 systemctl）；请把服务器访问权限控制在可信范围内。
 - 所有数据（账号、快照、密钥）都在本地，不会上传到任何地方。
+
+## 参与贡献
+
+欢迎提 Issue 与 PR：先在 [Issues](../../issues) 说明场景或复现步骤，PR 请保持改动聚焦，并确保 `python -m pytest` 与 `npm run build` 通过。版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 
