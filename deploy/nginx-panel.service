@@ -1,0 +1,19 @@
+[Unit]
+Description=nginx-panel 本地 nginx 可视化面板
+Documentation=https://github.com/
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=__PREFIX__
+Environment=NGINX_PANEL_HOST=0.0.0.0
+Environment=NGINX_PANEL_PORT=8090
+Environment=NGINX_PANEL_NO_BROWSER=1
+Environment=NGINX_PANEL_DATA_DIR=__DATA__
+ExecStart=__PREFIX__/venv/bin/python __PREFIX__/server/run.py
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

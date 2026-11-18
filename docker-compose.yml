@@ -1,0 +1,16 @@
+services:
+  nginx-panel:
+    build: .
+    image: nginx-panel:latest
+    container_name: nginx-panel
+    ports:
+      - "8090:8090"   # 面板
+      - "8080:80"     # 容器内 nginx
+    volumes:
+      - nginx-panel-data:/data
+      # 如需使用自己的 nginx 配置目录，取消下一行并准备好 ./nginx-conf
+      # - ./nginx-conf:/etc/nginx
+    restart: unless-stopped
+
+volumes:
+  nginx-panel-data:
