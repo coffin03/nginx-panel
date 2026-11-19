@@ -13,6 +13,8 @@ A local-first web UI for nginx: edit the real configuration tree, validate every
 
 > If this project saves your nginx config once, consider giving it a star — it helps others find it.
 
+![Edit a config, fail validation, roll back automatically](docs/screenshots/demo.gif)
+
 ## Why another nginx panel?
 
 nginx-panel is for people who manage the actual `nginx.conf` and its `include` tree, not only a list of proxy hosts.

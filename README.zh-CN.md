@@ -13,6 +13,8 @@
 
 > 如果这个项目帮你少踩了一次 nginx 配置的坑，欢迎点个 Star，让更多人发现它。
 
+![改错配置 → 校验失败 → 自动还原](docs/screenshots/demo.gif)
+
 ## 为什么要再做一个 nginx 面板？
 
 nginx-panel 面向的是管理真实 `nginx.conf` 及其 `include` 树的用户，而不只是维护一组反向代理站点。
