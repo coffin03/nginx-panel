@@ -1,5 +1,6 @@
 """外部修改监听：非本程序写入的配置变化自动存一份 auto 快照。"""
 
+import atexit
 import os
 import threading
 import time
@@ -9,6 +10,7 @@ from .db import db
 from .i18n import t
 
 _threads: Dict[int, threading.Event] = {}
+_workers: Dict[int, threading.Thread] = {}
 _suppress: Dict[int, float] = {}
 _last_hash: Dict[int, str] = {}
 _guard = threading.Lock()
@@ -111,13 +113,15 @@ def start_instance(instance_id: int) -> None:
             return
         stop = threading.Event()
         _threads[instance_id] = stop
-    t = threading.Thread(target=_run, args=(instance_id, stop), name=f"watch-{instance_id}", daemon=True)
+        t = threading.Thread(target=_run, args=(instance_id, stop), name=f"watch-{instance_id}", daemon=True)
+        _workers[instance_id] = t
     t.start()
 
 
 def stop_instance(instance_id: int) -> None:
     with _guard:
         stop = _threads.pop(instance_id, None)
+        _workers.pop(instance_id, None)
     if stop:
         stop.set()
     _last_hash.pop(instance_id, None)
@@ -138,3 +142,21 @@ def start_all() -> None:
 def stop_all() -> None:
     for instance_id in list(_threads.keys()):
         stop_instance(instance_id)
+
+
+def _shutdown() -> None:
+    """退出前停掉监听线程，避免 daemon 线程在解释器收尾时抛异常导致进程 abort。"""
+    with _guard:
+        stops = list(_threads.values())
+        workers = list(_workers.values())
+        _threads.clear()
+        _workers.clear()
+    for stop in stops:
+        stop.set()
+    current = threading.current_thread()
+    for worker in workers:
+        if worker is not current and worker.is_alive():
+            worker.join(timeout=5)
+
+
+atexit.register(_shutdown)
