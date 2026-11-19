@@ -8,6 +8,7 @@ import time
 from typing import Dict, List, Optional
 
 from ..core.errors import AppError
+from ..core.i18n import t
 from ..nginx.includes import ConfTree, load_tree
 from ..nginx.parser import parse_source
 from ..nginx.process import build_adapter
@@ -46,7 +47,7 @@ def ensure_allowed(path: str, prefix: str, tree: ConfTree) -> None:
     for src in tree.all_files():
         if os.path.realpath(src.path) == real:
             return
-    raise AppError(f"不允许写入 nginx 目录之外的文件: {path}", 400)
+    raise AppError(t("apply.outside_prefix", path=path), 400)
 
 
 def parse_nginx_errors(output: str) -> List[dict]:
@@ -121,7 +122,7 @@ def apply_changes(
     with _lock(int(inst["id"])):
         tree = load_tree(target.conf_abs, prefix)
         if tree.root is None:
-            raise AppError("无法读取主配置，请检查实例配置", 400)
+            raise AppError(t("apply.main_conf_unreadable"), 400)
 
         adapter = build_adapter(target, tree)
         before_status = adapter.status()
@@ -134,7 +135,7 @@ def apply_changes(
         for change in changes:
             path = normalize_path(change["path"], prefix)
             if path in seen:
-                raise AppError(f"重复修改同一文件: {path}")
+                raise AppError(t("apply.duplicate_change", path=path))
             seen.add(path)
             ensure_allowed(path, prefix, tree)
             current = file_sha(path)
@@ -143,20 +144,26 @@ def apply_changes(
                 conflicts.append({"path": path, "expected": base_hash, "actual": current})
                 continue
             content = change.get("content", "")
+            delete = bool(change.get("delete"))
+            if delete:
+                if current is None:
+                    continue
+                prepared.append({"path": path, "content": "", "exists": True, "delete": True})
+                continue
             parsed = parse_source(content, path)
             if parsed.error:
                 warnings.append({"path": path, "message": parsed.error})
-            prepared.append({"path": path, "content": content, "exists": current is not None})
+            prepared.append({"path": path, "content": content, "exists": current is not None, "delete": False})
 
         if conflicts:
-            raise AppError("文件已在磁盘上被修改，请刷新后重试", 409, {"conflicts": conflicts})
+            raise AppError(t("apply.conflict"), 409, {"conflicts": conflicts})
 
         if not prepared:
-            raise AppError("没有需要应用的修改")
+            raise AppError(t("apply.empty"))
 
         # 2. 先快照当前状态
         snapshot_id = create_snapshot(
-            int(inst["id"]), tree, message or "应用配置修改", trigger=trigger, operator=operator
+            int(inst["id"]), tree, message or t("apply.default_message"), trigger=trigger, operator=operator
         )
 
         # 3. 备份并写入
@@ -166,6 +173,10 @@ def apply_changes(
         originals: Dict[str, Optional[bytes]] = {p["path"]: _read_bytes(p["path"]) for p in prepared}
         try:
             for item in prepared:
+                if item.get("delete"):
+                    if os.path.exists(item["path"]):
+                        os.remove(item["path"])
+                    continue
                 raw = item["content"].encode("utf-8", "surrogateescape")
                 old = originals[item["path"]]
                 if old is not None and old.startswith(b"\xef\xbb\xbf"):
@@ -173,17 +184,17 @@ def apply_changes(
                 _write_bytes(item["path"], raw)
         except OSError as exc:
             _restore(originals)
-            log_apply(int(inst["id"]), snapshot_id, False, "写盘失败", str(exc))
-            raise AppError(f"写入配置失败: {exc}", 500, {"snapshot_id": snapshot_id})
+            log_apply(int(inst["id"]), snapshot_id, False, t("apply.log_write_failed"), str(exc))
+            raise AppError(t("apply.write_failed", error=exc), 500, {"snapshot_id": snapshot_id})
 
         # 4. nginx -t
         test = adapter.test()
         if not test.ok:
             _restore(originals)
             mark_test_result(snapshot_id, False)
-            log_apply(int(inst["id"]), snapshot_id, False, "配置校验失败", test.output)
+            log_apply(int(inst["id"]), snapshot_id, False, t("apply.log_test_failed"), test.output)
             raise AppError(
-                "nginx 配置校验失败，已自动还原",
+                t("apply.test_failed"),
                 400,
                 {
                     "stage": "test",
@@ -204,9 +215,9 @@ def apply_changes(
             if not rl.ok:
                 _restore(originals)
                 adapter.reload()
-                log_apply(int(inst["id"]), snapshot_id, False, "reload 失败，已回滚", rl.output)
+                log_apply(int(inst["id"]), snapshot_id, False, t("apply.log_reload_failed"), rl.output)
                 raise AppError(
-                    "reload 失败，已自动回滚",
+                    t("apply.reload_failed"),
                     500,
                     {
                         "stage": "reload",
@@ -222,15 +233,15 @@ def apply_changes(
             if not after.running or fatal:
                 _restore(originals)
                 adapter.reload()
-                detail = "\n".join(fatal[:20]) or "reload 后进程未运行"
-                log_apply(int(inst["id"]), snapshot_id, False, "健康检查失败，已回滚", detail)
+                detail = "\n".join(fatal[:20]) or t("apply.health_detail_empty")
+                log_apply(int(inst["id"]), snapshot_id, False, t("apply.log_health_failed"), detail)
                 raise AppError(
-                    "reload 后健康检查失败，已自动回滚",
+                    t("apply.health_failed"),
                     500,
                     {"stage": "health", "output": detail, "snapshot_id": snapshot_id},
                 )
 
-        log_apply(int(inst["id"]), snapshot_id, True, message or "应用配置修改", test.output)
+        log_apply(int(inst["id"]), snapshot_id, True, message or t("apply.default_message"), test.output)
         return {
             "ok": True,
             "snapshot_id": snapshot_id,
@@ -266,13 +277,13 @@ def restore_snapshot(inst: dict, snapshot_id: int, operator: str = "", reload: b
 
     files = snapshot_files(snapshot_id)
     if not files:
-        raise AppError("快照为空，无法回滚", 400)
+        raise AppError(t("snapshot.empty"), 400)
     target = target_of(inst)
     tree = load_tree(target.conf_abs, inst["prefix"])
     extra = [src.path for src in tree.all_files() if src.path not in files]
     changes = [{"path": path, "content": content, "base_hash": None} for path, content in files.items()]
     result = apply_changes(
-        inst, changes, message=f"回滚到快照 #{snapshot_id}", operator=operator, reload=reload, trigger="restore"
+        inst, changes, message=t("apply.restore_message", id=snapshot_id), operator=operator, reload=reload, trigger="restore"
     )
     result["untouched_extra_files"] = extra
     return result

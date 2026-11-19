@@ -5,6 +5,7 @@
 
 from typing import List, Optional, Tuple
 
+from ..core.i18n import t as tr
 from .ast import Node, SourceFile, TokType, Token
 
 
@@ -114,7 +115,7 @@ class _Parser:
                 continue
             if t == TokType.RBRACE:
                 if top_level:
-                    self.errors.append(f"第 {tok.line} 行: 多余的 '}}'")
+                    self.errors.append(tr("parse.unexpected_rbrace", line=tok.line))
                     self.i += 1
                     continue
                 close = tok
@@ -122,7 +123,7 @@ class _Parser:
                 return nodes, close
             if t == TokType.LBRACE:
                 if not stmt:
-                    self.errors.append(f"第 {tok.line} 行: '{{' 前缺少指令名")
+                    self.errors.append(tr("parse.missing_name", line=tok.line))
                     self.i += 1
                     continue
                 self.i += 1
@@ -144,7 +145,7 @@ class _Parser:
             node.incomplete = True
             nodes.append(node)
         if not top_level:
-            self.errors.append(f"第 {stmt[0].line if stmt else 1} 行: 块缺少 '}}'")
+            self.errors.append(tr("parse.unclosed_block", line=stmt[0].line if stmt else 1))
         return nodes, None
 
 
@@ -162,6 +163,6 @@ def parse_source(text: str, filename: str) -> SourceFile:
         if errors:
             src.error = "; ".join(errors)
     except ParseError as exc:  # 兜底：不应发生
-        src.error = f"第 {exc.line} 行: {exc.message}"
+        src.error = tr("parse.line_error", line=exc.line, message=exc.message)
         src.nodes = []
     return src

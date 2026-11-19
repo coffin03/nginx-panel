@@ -6,6 +6,7 @@ import zlib
 from typing import Dict, List, Optional
 
 from ..core.db import db
+from ..core.i18n import t
 from ..nginx.includes import ConfTree
 
 
@@ -81,7 +82,7 @@ def get_snapshot(instance_id: int, snapshot_id: int) -> dict:
         if not row:
             from ..core.errors import AppError
 
-            raise AppError("快照不存在", 404)
+            raise AppError(t("snapshot.not_found"), 404)
         files = conn.execute(
             "SELECT path, LENGTH(content_zlib) AS packed_size FROM blob WHERE snapshot_id=? ORDER BY path",
             (snapshot_id,),
@@ -99,7 +100,7 @@ def load_snapshot_file(snapshot_id: int, path: str) -> str:
     if not row:
         from ..core.errors import AppError
 
-        raise AppError("快照中不存在该文件", 404)
+        raise AppError(t("snapshot.file_not_found"), 404)
     return zlib.decompress(row["content_zlib"]).decode("utf-8", "surrogateescape")
 
 

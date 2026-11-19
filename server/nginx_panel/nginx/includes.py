@@ -10,6 +10,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+from ..core.i18n import t
 from .ast import Node, SourceFile
 from .parser import parse_source
 
@@ -88,7 +89,7 @@ def resolve_include(pattern: str, prefix: str, base_dir: str) -> List[str]:
 def load_tree(conf_path: str, prefix: str) -> ConfTree:
     tree = ConfTree(conf_path, prefix)
     if not os.path.isfile(tree.root_path):
-        tree.errors.append(f"主配置不存在: {tree.root_path}")
+        tree.errors.append(t("tree.main_conf_missing", path=tree.root_path))
         return tree
     tree.root = _expand(tree.root_path, tree.prefix, tree, [], 0, base_dir=os.path.dirname(tree.root_path))
     return tree
@@ -102,22 +103,22 @@ def _expand(path: str, prefix: str, tree: ConfTree, stack: List[str], depth: int
         return existing
 
     if depth > MAX_DEPTH:
-        src = SourceFile(path=abspath, text="", error="include 层级过深")
+        src = SourceFile(path=abspath, text="", error=t("tree.include_depth"))
         tree.files[key] = src
-        tree.errors.append(f"{abspath}: include 层级过深")
+        tree.errors.append(f"{abspath}: {t('tree.include_depth')}")
         return src
     if len(tree.files) >= MAX_FILES:
-        src = SourceFile(path=abspath, text="", error="include 文件数超过上限")
+        src = SourceFile(path=abspath, text="", error=t("tree.include_limit"))
         tree.files[key] = src
-        tree.errors.append(f"{abspath}: include 文件数超过上限")
+        tree.errors.append(f"{abspath}: {t('tree.include_limit')}")
         return src
 
     try:
         text, bom = read_text(abspath)
     except OSError as exc:
-        src = SourceFile(path=abspath, text="", error=f"无法读取: {exc}")
+        src = SourceFile(path=abspath, text="", error=t("tree.read_error", error=exc))
         tree.files[key] = src
-        tree.errors.append(f"{abspath}: 无法读取: {exc}")
+        tree.errors.append(f"{abspath}: {t('tree.read_error', error=exc)}")
         return src
 
     src = parse_source(text, abspath)
@@ -137,11 +138,11 @@ def _expand_node(node: Node, prefix: str, tree: ConfTree, stack: List[str], dept
         pattern = node.args[0]
         files = resolve_include(pattern, prefix, base_dir)
         if not files:
-            node.include_error = f"未匹配到文件: {pattern}"
+            node.include_error = t("tree.include_unmatched", pattern=pattern)
             return
         for fpath in files:
             if _key(fpath) in stack:
-                node.include_error = f"检测到循环 include: {fpath}"
+                node.include_error = t("tree.include_cycle", path=fpath)
                 continue
             child = _expand(fpath, prefix, tree, stack, depth + 1, base_dir=os.path.dirname(fpath))
             node.included.append(child)

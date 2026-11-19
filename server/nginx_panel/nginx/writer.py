@@ -10,6 +10,7 @@ import re
 from dataclasses import dataclass
 from typing import Iterable, List
 
+from ..core.i18n import t
 from .ast import Node, SourceFile, TextEdit
 
 _NEED_QUOTE = re.compile(r"[\s\"'{};#]")
@@ -129,7 +130,7 @@ def apply_edits(text: str, edits: List[TextEdit]) -> str:
     ordered = sorted(edits, key=lambda e: (e.start, e.end))
     for prev, cur in zip(ordered, ordered[1:]):
         if cur.start < prev.end:
-            raise ValueError("编辑区间重叠，已取消本次修改")
+            raise ValueError(t("edit.overlap"))
     out = text
     for edit in reversed(ordered):
         out = out[: edit.start] + edit.replacement + out[edit.end :]

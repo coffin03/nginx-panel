@@ -1,0 +1,406 @@
+"""中英文文案：按请求头（X-Locale / Accept-Language）切换，默认中文。"""
+
+from contextvars import ContextVar
+from typing import Dict, Optional
+
+DEFAULT_LOCALE = "zh"
+SUPPORTED = ("zh", "en")
+
+_current: ContextVar[str] = ContextVar("nginx_panel_locale", default=DEFAULT_LOCALE)
+
+MESSAGES: Dict[str, Dict[str, str]] = {
+    "zh": {
+        # 认证
+        "auth.admin_exists": "管理员已存在，请直接登录",
+        "auth.username_too_short": "用户名至少 2 个字符",
+        "auth.password_too_short": "密码至少 6 位",
+        "auth.invalid_credentials": "用户名或密码错误",
+        "auth.old_password_wrong": "原密码错误",
+        "auth.new_password_too_short": "新密码至少 6 位",
+        "auth.too_many_attempts": "尝试次数过多，请稍后再试",
+        "auth.not_logged_in": "未登录",
+        "auth.session_expired": "会话失效",
+        "auth.not_initialized": "尚未初始化管理员账号",
+        # 系统
+        "system.dialog_missing": "当前环境缺少图形界面组件，无法打开文件选择框，请手动填写路径",
+        "system.dialog_failed": "无法打开系统文件选择框，请手动填写路径",
+        "system.dialog_title_file": "选择文件",
+        "system.dialog_title_folder": "选择文件夹",
+        "system.dialog_all_files": "所有文件",
+        "system.invalid_pick_mode": "选择类型只能是 file 或 folder",
+        # 实例
+        "instance.not_found": "实例不存在",
+        "instance.name_required": "实例名称不能为空",
+        "instance.binary_required": "nginx 可执行文件路径不能为空",
+        "instance.prefix_required": "nginx 目录（prefix）不能为空",
+        "instance.run_mode_invalid": "运行模式只能是 local 或 systemd",
+        "instance.prefix_missing": "nginx 目录不存在: {path}",
+        "instance.conf_missing": "主配置文件不存在: {path}",
+        "instance.name_binary_required": "名称与可执行文件路径不能为空",
+        "instance.unsupported_action": "不支持的操作",
+        "instance.status_check_failed": "状态检测失败: {error}",
+        # 文件
+        "file.outside_prefix": "文件不在 nginx 目录内",
+        "file.not_found": "文件不存在",
+        "file.not_text": "该文件不是文本文件，无法编辑",
+        "file.read_failed": "读取失败: {error}",
+        "file.diff_snapshot": "快照 {name}",
+        "file.diff_current": "当前 {name}",
+        # 应用流水线
+        "apply.outside_prefix": "不允许写入 nginx 目录之外的文件: {path}",
+        "apply.main_conf_unreadable": "无法读取主配置，请检查实例配置",
+        "apply.duplicate_change": "重复修改同一文件: {path}",
+        "apply.conflict": "文件已在磁盘上被修改，请刷新后重试",
+        "apply.empty": "没有需要应用的修改",
+        "apply.write_failed": "写入配置失败: {error}",
+        "apply.test_failed": "nginx 配置校验失败，已自动还原",
+        "apply.reload_failed": "reload 失败，已自动回滚",
+        "apply.health_failed": "reload 后健康检查失败，已自动回滚",
+        "apply.health_detail_empty": "reload 后进程未运行",
+        "apply.default_message": "应用配置修改",
+        "apply.restore_message": "回滚到快照 #{id}",
+        "apply.log_write_failed": "写盘失败",
+        "apply.log_test_failed": "配置校验失败",
+        "apply.log_reload_failed": "reload 失败，已回滚",
+        "apply.log_health_failed": "健康检查失败，已回滚",
+        # 快照
+        "snapshot.not_found": "快照不存在",
+        "snapshot.file_not_found": "快照中不存在该文件",
+        "snapshot.empty": "快照为空，无法回滚",
+        "snapshot.auto_message": "检测到外部修改，自动快照",
+        # 表单
+        "form.no_http_block": "主配置中没有找到 http 块",
+        "form.file_deleted": "文件已被删除，请刷新页面",
+        "form.position_stale": "配置位置已失效（可能被其他修改影响），请刷新页面",
+        "form.missing_location": "表单修改缺少定位信息",
+        "form.file_changed": "文件不存在或已变更，请刷新页面",
+        "form.directive_not_allowed": "不允许通过表单修改指令: {name}",
+        "form.block_delete_unsupported": "不支持在表单中删除 {name} 块",
+        "form.invalid_args": "参数格式错误",
+        "form.insert_missing_name": "新增指令缺少文件或名称",
+        "form.insert_not_allowed": "不允许通过表单新增指令: {name}",
+        "form.file_missing": "文件不存在，请刷新页面",
+        "form.target_not_block": "目标位置不是块，无法插入",
+        "form.insert_missing_position": "新增指令缺少插入位置",
+        "form.no_changes": "没有需要保存的表单修改",
+        "form.default_message": "表单修改",
+        # 日志
+        "log.not_found": "日志文件不存在",
+        "log.path_forbidden": "不允许读取该路径",
+        "log.read_failed": "读取失败: {error}",
+        # 配置接口
+        "config.empty_changes": "没有需要应用的修改",
+        "config.edit_message": "编辑配置文件",
+        "config.batch_message": "批量应用修改",
+        # 进程
+        "process.running": "运行中",
+        "process.stopped": "未运行",
+        "process.command_missing": "找不到命令或可执行文件: {name}",
+        "process.timeout": "命令超时",
+        "process.exec_failed": "执行失败: {error}",
+        "process.started": "nginx 已启动，master PID {pid}",
+        "process.start_failed_exit": "nginx 启动失败（进程退出码 {code}），请查看 error.log",
+        "process.pid_missing": "nginx 启动命令已执行，但未检测到 pid 文件",
+        "process.binary_missing": "找不到 nginx 可执行文件: {path}",
+        "process.start_error": "启动失败: {error}",
+        "process.already_running": "nginx 已在运行（PID {pid}）",
+        "process.not_running": "nginx 未在运行",
+        "process.stopped_ok": "nginx 已停止",
+        "process.stop_timeout": "停止超时，进程仍在运行",
+        "process.reload_not_running": "nginx 未运行，无法 reload",
+        "process.test_failed_reload": "配置校验失败，未执行 reload\n{output}",
+        "process.reload_dead": "reload 后 nginx 未在运行，请检查 error.log\n{output}",
+        "process.reload_ok": "reload 成功",
+        "process.reload_failed": "reload 失败",
+        "process.started_systemd": "已启动",
+        "process.stopped_systemd": "已停止",
+        "process.restarted": "已重启",
+        "process.test_failed_restart": "配置校验失败，未执行 restart\n{output}",
+        # 解析与 include 展开
+        "tree.main_conf_missing": "主配置不存在: {path}",
+        "tree.include_depth": "include 层级过深",
+        "tree.include_limit": "include 文件数超过上限",
+        "tree.read_error": "无法读取: {error}",
+        "tree.include_unmatched": "未匹配到文件: {pattern}",
+        "tree.include_cycle": "检测到循环 include: {path}",
+        "parse.unexpected_rbrace": "第 {line} 行: 多余的 '}'",
+        "parse.missing_name": "第 {line} 行: '{' 前缺少指令名",
+        "parse.unclosed_block": "第 {line} 行: 块缺少 '}'",
+        "parse.line_error": "第 {line} 行: {message}",
+        "edit.overlap": "编辑区间重叠，已取消本次修改",
+        # 证书
+        "cert.missing": "证书文件不存在: {path}",
+        "cert.invalid": "无法解析证书: {error}",
+        # 证书续期
+        "renew.custom": "自定义命令",
+        "renew.cert_missing": "证书文件不存在: {path}",
+        "renew.no_command": "续期命令不能为空",
+        "renew.timeout": "续期命令执行超时（{seconds} 秒）",
+        # 新建站点
+        "site.comment": "由 nginx-panel 生成",
+        "site.redirect_comment": "HTTP 跳转到 HTTPS",
+        "site.message": "新建站点 {name}",
+        "site.name_required": "域名不能为空",
+        "site.name_invalid": "域名只能包含字母、数字、点、连字符、下划线、冒号和 *",
+        "site.kind_invalid": "站点类型只能是 static 或 proxy",
+        "site.port_invalid": "端口必须在 1-65535 之间",
+        "site.location_invalid": "路径必须以 / 开头，且不能包含空白或分号",
+        "site.root_required": "静态站点的根目录不能为空",
+        "site.root_missing": "根目录不存在，nginx 启动后访问该站点会失败: {path}",
+        "site.proxy_required": "反向代理地址不能为空",
+        "site.proxy_invalid": "反向代理地址格式不正确，例如 http://127.0.0.1:8080",
+        "site.ssl_required": "启用 HTTPS 需要填写证书和私钥路径",
+        "site.ssl_missing": "证书或私钥文件不存在: {path}",
+        "site.filename_invalid": "文件名不合法，只能包含字母、数字、点、下划线和连字符",
+        "site.file_exists": "站点文件已存在: {path}",
+        "site.no_http_block": "主配置中没有找到 http 块，无法自动挂载 conf.d",
+        "site.not_found": "站点文件不存在: {name}",
+        "site.target_exists": "目标文件已存在，无法重命名: {name}",
+        "site.already_enabled": "站点已是启用状态: {name}",
+        "site.already_disabled": "站点已是停用状态: {name}",
+        "site.enable_message": "启用站点 {name}",
+        "site.disable_message": "停用站点 {name}",
+        "site.delete_message": "删除站点 {name}",
+        # Checks
+        "check.parse_error": "配置解析失败: {error}",
+        "check.duplicate_server_name": "同一端口上重复的 server_name: {name}（{port}）",
+        "check.cert_missing": "证书文件不存在: {path}",
+        "check.key_missing": "证书私钥不存在: {path}",
+        "check.tls_weak": "启用了过时的 TLS 协议: {protocols}",
+        "check.tls_default": "已启用 HTTPS 但未显式配置 ssl_protocols，建议只保留 TLSv1.2 / TLSv1.3",
+        "check.root_missing": "站点根目录不存在: {path}",
+        "check.confd_not_included": "conf.d 下有 {n} 个站点文件，但主配置未 include conf.d/*.conf",
+        "check.gzip_off": "未开启 gzip，文本资源传输体积会偏大",
+        "check.body_size": "未设置 client_max_body_size，上传较大文件可能返回 413",
+        "check.server_tokens": "server_tokens 未关闭，响应头会暴露 nginx 版本",
+        # 配置备份
+        "backup.invalid_data": "备份数据格式不正确",
+        "backup.invalid_zip": "不是有效的 zip 备份文件",
+        "backup.too_many_files": "备份条目过多（上限 {limit} 个）",
+        "backup.too_large": "备份解压后体积过大（上限 {limit} MB）",
+        "backup.encrypted": "不支持加密的备份文件",
+        "backup.bad_entry": "备份中包含非法路径: {path}",
+        "backup.duplicate_entry": "备份中存在重复条目: {path}",
+        "backup.manifest_missing": "备份缺少 manifest.json，可能不是本工具导出的文件",
+        "backup.manifest_invalid": "manifest.json 解析失败: {error}",
+        "backup.ignored_entry": "已忽略未知条目: {path}",
+        "backup.empty": "备份中没有可导入的配置文件",
+        "backup.external_hint": "有 {n} 个文件位于 nginx 目录之外，未包含在备份中",
+        "backup.prefix_mismatch": "备份来自其他目录（{from_}），将导入到当前实例目录 {to}",
+        "backup.import_message": "导入配置备份: {name}",
+    },
+    "en": {
+        # Auth
+        "auth.admin_exists": "An administrator already exists. Please sign in.",
+        "auth.username_too_short": "Username must be at least 2 characters",
+        "auth.password_too_short": "Password must be at least 6 characters",
+        "auth.invalid_credentials": "Incorrect username or password",
+        "auth.old_password_wrong": "Current password is incorrect",
+        "auth.new_password_too_short": "New password must be at least 6 characters",
+        "auth.too_many_attempts": "Too many attempts. Please try again later.",
+        "auth.not_logged_in": "Not signed in",
+        "auth.session_expired": "Session expired",
+        "auth.not_initialized": "Administrator account has not been initialized",
+        # System
+        "system.dialog_missing": "No GUI toolkit is available, unable to open the file picker. Please enter the path manually.",
+        "system.dialog_failed": "Unable to open the system file picker. Please enter the path manually.",
+        "system.dialog_title_file": "Select File",
+        "system.dialog_title_folder": "Select Folder",
+        "system.dialog_all_files": "All Files",
+        "system.invalid_pick_mode": "Selection type must be 'file' or 'folder'",
+        # Instances
+        "instance.not_found": "Instance not found",
+        "instance.name_required": "Instance name is required",
+        "instance.binary_required": "nginx executable path is required",
+        "instance.prefix_required": "nginx prefix directory is required",
+        "instance.run_mode_invalid": "Run mode must be 'local' or 'systemd'",
+        "instance.prefix_missing": "nginx directory does not exist: {path}",
+        "instance.conf_missing": "Main configuration file does not exist: {path}",
+        "instance.name_binary_required": "Name and executable path are required",
+        "instance.unsupported_action": "Unsupported operation",
+        "instance.status_check_failed": "Status check failed: {error}",
+        # Files
+        "file.outside_prefix": "File is outside the nginx directory",
+        "file.not_found": "File not found",
+        "file.not_text": "This file is not a text file and cannot be edited",
+        "file.read_failed": "Read failed: {error}",
+        "file.diff_snapshot": "Snapshot {name}",
+        "file.diff_current": "Current {name}",
+        # Apply pipeline
+        "apply.outside_prefix": "Writing files outside the nginx directory is not allowed: {path}",
+        "apply.main_conf_unreadable": "Unable to read the main configuration. Please check the instance settings.",
+        "apply.duplicate_change": "The same file is modified more than once: {path}",
+        "apply.conflict": "File has been modified on disk. Please refresh and try again.",
+        "apply.empty": "No changes to apply",
+        "apply.write_failed": "Failed to write configuration: {error}",
+        "apply.test_failed": "nginx configuration test failed; changes were reverted automatically",
+        "apply.reload_failed": "Reload failed; changes were rolled back automatically",
+        "apply.health_failed": "Health check failed after reload; changes were rolled back automatically",
+        "apply.health_detail_empty": "Process is not running after reload",
+        "apply.default_message": "Apply configuration changes",
+        "apply.restore_message": "Roll back to snapshot #{id}",
+        "apply.log_write_failed": "Write failed",
+        "apply.log_test_failed": "Configuration test failed",
+        "apply.log_reload_failed": "Reload failed, rolled back",
+        "apply.log_health_failed": "Health check failed, rolled back",
+        # Snapshots
+        "snapshot.not_found": "Snapshot not found",
+        "snapshot.file_not_found": "File not found in snapshot",
+        "snapshot.empty": "Snapshot is empty and cannot be restored",
+        "snapshot.auto_message": "External changes detected, automatic snapshot",
+        # Forms
+        "form.no_http_block": "No http block found in the main configuration",
+        "form.file_deleted": "File has been deleted. Please refresh the page.",
+        "form.position_stale": "Configuration position is no longer valid (possibly affected by other changes). Please refresh the page.",
+        "form.missing_location": "Form edit is missing position information",
+        "form.file_changed": "File does not exist or has changed. Please refresh the page.",
+        "form.directive_not_allowed": "Directive cannot be modified via the form: {name}",
+        "form.block_delete_unsupported": "Deleting {name} blocks in the form is not supported",
+        "form.invalid_args": "Invalid argument format",
+        "form.insert_missing_name": "New directive is missing file or name",
+        "form.insert_not_allowed": "Directive cannot be added via the form: {name}",
+        "form.file_missing": "File not found. Please refresh the page.",
+        "form.target_not_block": "Target position is not a block, cannot insert",
+        "form.insert_missing_position": "New directive is missing an insert position",
+        "form.no_changes": "No form changes to save",
+        "form.default_message": "Form edit",
+        # Logs
+        "log.not_found": "Log file not found",
+        "log.path_forbidden": "Reading this path is not allowed",
+        "log.read_failed": "Read failed: {error}",
+        # Config API
+        "config.empty_changes": "No changes to apply",
+        "config.edit_message": "Edit configuration file",
+        "config.batch_message": "Batch apply changes",
+        # Process
+        "process.running": "Running",
+        "process.stopped": "Stopped",
+        "process.command_missing": "Command or executable not found: {name}",
+        "process.timeout": "Command timed out",
+        "process.exec_failed": "Execution failed: {error}",
+        "process.started": "nginx started, master PID {pid}",
+        "process.start_failed_exit": "nginx failed to start (exit code {code}). Please check error.log.",
+        "process.pid_missing": "Start command executed but no pid file was detected",
+        "process.binary_missing": "nginx executable not found: {path}",
+        "process.start_error": "Start failed: {error}",
+        "process.already_running": "nginx is already running (PID {pid})",
+        "process.not_running": "nginx is not running",
+        "process.stopped_ok": "nginx stopped",
+        "process.stop_timeout": "Stop timed out; the process is still running",
+        "process.reload_not_running": "nginx is not running, cannot reload",
+        "process.test_failed_reload": "Configuration test failed, reload was not executed\n{output}",
+        "process.reload_dead": "nginx is not running after reload. Please check error.log.\n{output}",
+        "process.reload_ok": "Reload succeeded",
+        "process.reload_failed": "Reload failed",
+        "process.started_systemd": "Started",
+        "process.stopped_systemd": "Stopped",
+        "process.restarted": "Restarted",
+        "process.test_failed_restart": "Configuration test failed, restart was not executed\n{output}",
+        # Parsing and include expansion
+        "tree.main_conf_missing": "Main configuration does not exist: {path}",
+        "tree.include_depth": "include nesting is too deep",
+        "tree.include_limit": "Too many included files",
+        "tree.read_error": "Unable to read: {error}",
+        "tree.include_unmatched": "No files matched: {pattern}",
+        "tree.include_cycle": "Circular include detected: {path}",
+        "parse.unexpected_rbrace": "Line {line}: unexpected '}'",
+        "parse.missing_name": "Line {line}: missing directive name before '{'",
+        "parse.unclosed_block": "Line {line}: block is missing '}'",
+        "parse.line_error": "Line {line}: {message}",
+        "edit.overlap": "Edit ranges overlap; this change was cancelled",
+        # Certificates
+        "cert.missing": "Certificate file not found: {path}",
+        "cert.invalid": "Unable to parse certificate: {error}",
+        # Renewal
+        "renew.custom": "Custom command",
+        "renew.cert_missing": "Certificate file not found: {path}",
+        "renew.no_command": "Renewal command is required",
+        "renew.timeout": "Renewal command timed out after {seconds} seconds",
+        # New site
+        "site.comment": "Generated by nginx-panel",
+        "site.redirect_comment": "Redirect HTTP to HTTPS",
+        "site.message": "Create site {name}",
+        "site.name_required": "Domain name is required",
+        "site.name_invalid": "Domain name may only contain letters, digits, dots, hyphens, underscores, colons and *",
+        "site.kind_invalid": "Site type must be static or proxy",
+        "site.port_invalid": "Port must be between 1 and 65535",
+        "site.location_invalid": "Path must start with / and contain no spaces or semicolons",
+        "site.root_required": "Document root is required for a static site",
+        "site.root_missing": "Document root does not exist; the site will fail after nginx starts: {path}",
+        "site.proxy_required": "Upstream address is required",
+        "site.proxy_invalid": "Invalid upstream address, for example http://127.0.0.1:8080",
+        "site.ssl_required": "Certificate and key paths are required when HTTPS is enabled",
+        "site.ssl_missing": "Certificate or key file not found: {path}",
+        "site.filename_invalid": "Invalid file name; only letters, digits, dots, underscores and hyphens are allowed",
+        "site.file_exists": "Site file already exists: {path}",
+        "site.no_http_block": "No http block found in the main configuration; cannot mount conf.d automatically",
+        "site.not_found": "Site file not found: {name}",
+        "site.target_exists": "Target file already exists; cannot rename: {name}",
+        "site.already_enabled": "Site is already enabled: {name}",
+        "site.already_disabled": "Site is already disabled: {name}",
+        "site.enable_message": "Enable site {name}",
+        "site.disable_message": "Disable site {name}",
+        "site.delete_message": "Delete site {name}",
+        # Checks
+        "check.parse_error": "Failed to parse configuration: {error}",
+        "check.duplicate_server_name": "Duplicate server_name on the same port: {name} ({port})",
+        "check.cert_missing": "Certificate file not found: {path}",
+        "check.key_missing": "Certificate key not found: {path}",
+        "check.tls_weak": "Obsolete TLS protocols enabled: {protocols}",
+        "check.tls_default": "HTTPS is enabled without explicit ssl_protocols; consider keeping only TLSv1.2 / TLSv1.3",
+        "check.root_missing": "Document root does not exist: {path}",
+        "check.confd_not_included": "conf.d contains {n} site file(s) but the main configuration does not include conf.d/*.conf",
+        "check.gzip_off": "gzip is not enabled; text assets will be transferred uncompressed",
+        "check.body_size": "client_max_body_size is not set; large uploads may return 413",
+        "check.server_tokens": "server_tokens is not off; responses expose the nginx version",
+        # Backup
+        "backup.invalid_data": "Invalid backup data",
+        "backup.invalid_zip": "Not a valid zip backup file",
+        "backup.too_many_files": "Too many entries in the backup (limit {limit})",
+        "backup.too_large": "Backup is too large after extraction (limit {limit} MB)",
+        "backup.encrypted": "Encrypted backups are not supported",
+        "backup.bad_entry": "Backup contains an invalid path: {path}",
+        "backup.duplicate_entry": "Duplicate entry in the backup: {path}",
+        "backup.manifest_missing": "Backup is missing manifest.json and may not come from this tool",
+        "backup.manifest_invalid": "Failed to parse manifest.json: {error}",
+        "backup.ignored_entry": "Ignored unknown entry: {path}",
+        "backup.empty": "No configuration files in the backup",
+        "backup.external_hint": "{n} file(s) are outside the nginx directory and were not included",
+        "backup.prefix_mismatch": "Backup comes from another directory ({from_}); importing into {to}",
+        "backup.import_message": "Import configuration backup: {name}",
+    },
+}
+
+
+def normalize_locale(value: Optional[str]) -> str:
+    """把 Accept-Language / X-Locale 归一化成 zh 或 en。"""
+    if not value:
+        return DEFAULT_LOCALE
+    tag = value.split(",")[0].split(";")[0].strip().lower()
+    return "en" if tag.startswith("en") else DEFAULT_LOCALE
+
+
+def set_locale(value: Optional[str]) -> object:
+    return _current.set(normalize_locale(value))
+
+
+def reset_locale(token: object) -> None:
+    try:
+        _current.reset(token)
+    except (ValueError, RuntimeError):
+        pass
+
+
+def get_locale() -> str:
+    return _current.get()
+
+
+def t(key: str, **params) -> str:
+    """取当前语言文案，缺失时回退中文，再回退 key 本身。"""
+    text = MESSAGES.get(_current.get(), {}).get(key) or MESSAGES[DEFAULT_LOCALE].get(key) or key
+    if params:
+        try:
+            return text.format(**params)
+        except (KeyError, IndexError, ValueError):
+            return text
+    return text

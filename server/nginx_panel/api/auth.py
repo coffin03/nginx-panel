@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from ..core.errors import AppError
+from ..core.i18n import t
 from ..core.security import (
     check_rate_limit,
     clear_failures,
@@ -48,12 +49,12 @@ def auth_status(request: Request):
 @router.post("/setup")
 def setup(payload: Credentials, request: Request):
     if user_count() > 0:
-        raise AppError("管理员已存在，请直接登录", 400)
+        raise AppError(t("auth.admin_exists"), 400)
     username = payload.username.strip()
     if len(username) < 2:
-        raise AppError("用户名至少 2 个字符")
+        raise AppError(t("auth.username_too_short"))
     if len(payload.password) < 6:
-        raise AppError("密码至少 6 位")
+        raise AppError(t("auth.password_too_short"))
     uid = create_user(username, payload.password)
     request.session["uid"] = uid
     return {"ok": True, "username": username}
@@ -66,7 +67,7 @@ def login(payload: Credentials, request: Request):
     user = get_user(payload.username.strip())
     if not user or not verify_password(payload.password, user["password_hash"]):
         record_failure(key)
-        raise AppError("用户名或密码错误", 401)
+        raise AppError(t("auth.invalid_credentials"), 401)
     clear_failures(key)
     request.session["uid"] = user["id"]
     return {"ok": True, "username": user["username"]}
@@ -81,9 +82,9 @@ def logout(request: Request):
 @router.post("/password")
 def change_password(payload: PasswordChange, user: dict = Depends(current_user)):
     if not verify_password(payload.old_password, user["password_hash"]):
-        raise AppError("原密码错误", 400)
+        raise AppError(t("auth.old_password_wrong"), 400)
     if len(payload.new_password) < 6:
-        raise AppError("新密码至少 6 位")
+        raise AppError(t("auth.new_password_too_short"))
     from ..core.db import db
 
     with db() as conn:

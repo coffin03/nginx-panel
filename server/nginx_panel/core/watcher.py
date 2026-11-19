@@ -6,6 +6,7 @@ import time
 from typing import Dict, Optional
 
 from .db import db
+from .i18n import t
 
 _threads: Dict[int, threading.Event] = {}
 _suppress: Dict[int, float] = {}
@@ -58,7 +59,7 @@ def _snapshot_if_changed(instance_id: int) -> None:
             return
         if _suppressed(instance_id):
             return
-        create_snapshot(instance_id, tree, "检测到外部修改，自动快照", trigger="auto")
+        create_snapshot(instance_id, tree, t("snapshot.auto_message"), trigger="auto")
         _last_hash[instance_id] = digest
     except Exception:
         pass

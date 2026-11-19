@@ -5,6 +5,7 @@ import os
 from typing import List, Optional
 
 from ..core.errors import AppError
+from ..core.i18n import t
 from ..nginx.includes import ConfTree, load_tree
 from ..nginx.parser import parse_source
 from .apply import file_sha
@@ -133,7 +134,7 @@ def check_path_allowed(path: str, inst: dict, tree: ConfTree) -> str:
     for src in tree.all_files():
         if os.path.realpath(src.path) == real:
             return path
-    raise AppError("文件不在 nginx 目录内", 403)
+    raise AppError(t("file.outside_prefix"), 403)
 
 
 def read_file(inst: dict, path: str, tree: Optional[ConfTree] = None) -> dict:
@@ -142,14 +143,14 @@ def read_file(inst: dict, path: str, tree: Optional[ConfTree] = None) -> dict:
     path = path if os.path.isabs(path) else os.path.join(inst["prefix"], path)
     path = check_path_allowed(path, inst, tree)
     if not os.path.isfile(path):
-        raise AppError("文件不存在", 404)
+        raise AppError(t("file.not_found"), 404)
     if _is_binary(path):
-        raise AppError("该文件不是文本文件，无法编辑", 400)
+        raise AppError(t("file.not_text"), 400)
     try:
         with open(path, "rb") as fh:
             raw = fh.read()
     except OSError as exc:
-        raise AppError(f"读取失败: {exc}", 500)
+        raise AppError(t("file.read_failed", error=exc), 500)
     bom = raw.startswith(b"\xef\xbb\xbf")
     if bom:
         raw = raw[3:]
@@ -171,8 +172,8 @@ def snapshot_diff(inst: dict, snapshot_content: str, path: str) -> str:
     diff = difflib.unified_diff(
         snapshot_content.splitlines(keepends=True),
         current.splitlines(keepends=True),
-        fromfile=f"快照 {os.path.basename(path)}",
-        tofile=f"当前 {os.path.basename(path)}",
+        fromfile=t("file.diff_snapshot", name=os.path.basename(path)),
+        tofile=t("file.diff_current", name=os.path.basename(path)),
         lineterm="\n",
     )
     return "".join(diff)

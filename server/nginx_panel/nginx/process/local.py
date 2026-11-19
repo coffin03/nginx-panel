@@ -9,6 +9,7 @@ import subprocess
 import sys
 import time
 
+from ...core.i18n import t
 from .base import InstanceTarget, OpResult, ProcessAdapter, Status, pid_alive, read_pid, resolve_binary, run_command
 
 
@@ -43,54 +44,60 @@ class LocalAdapter(ProcessAdapter):
                 )
                 pid = self.wait_pid(6.0)
                 if pid:
-                    return OpResult(True, f"nginx 已启动，master PID {pid}", pid=pid, running=True)
+                    return OpResult(True, t("process.started", pid=pid), pid=pid, running=True)
                 # 启动失败时进程可能已退出
                 code = proc.poll()
-                return OpResult(False, f"nginx 启动失败（进程退出码 {code}），请查看 error.log", code, running=False)
+                return OpResult(False, t("process.start_failed_exit", code=code), code, running=False)
             proc = run_command(self._args(), cwd=self.prefix, timeout=20)
             if not proc.ok:
                 return proc
             pid = self.wait_pid(6.0)
             if pid:
-                return OpResult(True, f"nginx 已启动，master PID {pid}", 0, pid=pid, running=True)
-            return OpResult(False, "nginx 启动命令已执行，但未检测到 pid 文件", 0, running=False)
+                return OpResult(True, t("process.started", pid=pid), 0, pid=pid, running=True)
+            return OpResult(False, t("process.pid_missing"), 0, running=False)
         except FileNotFoundError:
-            return OpResult(False, f"找不到 nginx 可执行文件: {self.binary}", 127)
+            return OpResult(False, t("process.binary_missing", path=self.binary), 127)
         except OSError as exc:
-            return OpResult(False, f"启动失败: {exc}", -1)
+            return OpResult(False, t("process.start_error", error=exc), -1)
 
     def start(self) -> OpResult:
         st = self.status()
         if st.running:
-            return OpResult(True, f"nginx 已在运行（PID {st.pid}）", pid=st.pid, running=True)
+            return OpResult(True, t("process.already_running", pid=st.pid), pid=st.pid, running=True)
         return self._spawn()
 
     def stop(self) -> OpResult:
         st = self.status()
         if not st.running:
-            return OpResult(True, "nginx 未在运行", running=False)
+            return OpResult(True, t("process.not_running"), running=False)
         res = run_command(self._args("-s", "stop"), cwd=self.prefix, timeout=30)
         pid = st.pid
         deadline = time.time() + 12
         while time.time() < deadline:
             if not pid_alive(pid or 0):
-                return OpResult(True, "nginx 已停止", 0, running=False)
+                return OpResult(True, t("process.stopped_ok"), 0, running=False)
             time.sleep(0.2)
-        return OpResult(False, "停止超时，进程仍在运行", res.exit_code, running=True)
+        return OpResult(False, t("process.stop_timeout"), res.exit_code, running=True)
 
     def reload(self) -> OpResult:
         st = self.status()
         if not st.running:
-            return OpResult(False, "nginx 未运行，无法 reload", running=False)
+            return OpResult(False, t("process.reload_not_running"), running=False)
         test = self.test()
         if not test.ok:
-            return OpResult(False, "配置校验失败，未执行 reload\n" + test.output, test.exit_code, running=True)
+            return OpResult(False, t("process.test_failed_reload", output=test.output), test.exit_code, running=True)
         res = run_command(self._args("-s", "reload"), cwd=self.prefix, timeout=30)
         time.sleep(0.6)
         st2 = self.status()
         if not st2.running:
-            return OpResult(False, "reload 后 nginx 未在运行，请检查 error.log\n" + res.output, res.exit_code, running=False)
-        return OpResult(res.ok, ("reload 成功" if res.ok else "reload 失败") + (("\n" + res.output) if res.output else ""), res.exit_code, pid=st2.pid, running=True)
+            return OpResult(False, t("process.reload_dead", output=res.output), res.exit_code, running=False)
+        return OpResult(
+            res.ok,
+            (t("process.reload_ok") if res.ok else t("process.reload_failed")) + (("\n" + res.output) if res.output else ""),
+            res.exit_code,
+            pid=st2.pid,
+            running=True,
+        )
 
     def restart(self) -> OpResult:
         stop = self.stop()

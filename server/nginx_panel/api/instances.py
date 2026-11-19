@@ -10,6 +10,7 @@ from pydantic import BaseModel
 
 from ..core.db import db
 from ..core.errors import AppError
+from ..core.i18n import t
 from ..core.security import current_user
 from ..nginx.process import build_adapter
 from ..services.instances import (
@@ -57,7 +58,7 @@ def index(_: dict = Depends(current_user)):
         try:
             inst["status"] = _status(inst)
         except Exception as exc:  # 单个实例异常不影响列表
-            inst["status"] = {"running": False, "pid": None, "detail": f"状态检测失败: {exc}"}
+            inst["status"] = {"running": False, "pid": None, "detail": t("instance.status_check_failed", error=exc)}
     return items
 
 
@@ -104,7 +105,7 @@ def status(instance_id: int, _: dict = Depends(current_user)):
 @router.post("/{instance_id}/ops/{action}")
 def operate(instance_id: int, action: str, _: dict = Depends(current_user)):
     if action not in ("start", "stop", "reload", "restart", "test"):
-        raise AppError("不支持的操作", 400)
+        raise AppError(t("instance.unsupported_action"), 400)
     inst = get_instance(instance_id)
     tree = load_instance_tree(inst)
     adapter = build_adapter(target_of(inst), tree)

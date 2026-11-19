@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from ..core.errors import AppError
+from ..core.i18n import t
 from ..core.security import current_user
 from ..services.apply import apply_changes, file_sha
 from ..services.files import list_files, read_file
@@ -53,7 +54,7 @@ def write_file(instance_id: int, payload: FileWrite, user: dict = Depends(curren
     result = apply_changes(
         inst,
         [{"path": payload.path, "content": payload.content, "base_hash": payload.base_hash}],
-        message=payload.message or "编辑配置文件",
+        message=payload.message or t("config.edit_message"),
         operator=user["username"],
         reload=payload.reload,
         trigger="editor",
@@ -65,11 +66,11 @@ def write_file(instance_id: int, payload: FileWrite, user: dict = Depends(curren
 def apply(instance_id: int, payload: ApplyPayload, user: dict = Depends(current_user)):
     inst = get_instance(instance_id)
     if not payload.changes:
-        raise AppError("没有需要应用的修改")
+        raise AppError(t("config.empty_changes"))
     return apply_changes(
         inst,
         [c.model_dump() for c in payload.changes],
-        message=payload.message or "批量应用修改",
+        message=payload.message or t("config.batch_message"),
         operator=user["username"],
         reload=payload.reload,
         trigger="batch",

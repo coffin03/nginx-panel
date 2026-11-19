@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from ..core.errors import AppError
+from ..core.i18n import t
 from ..core.security import current_user
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -23,6 +24,11 @@ class PickRequest(BaseModel):
 def _open_dialog(mode: str, title: str, initial: str) -> str:
     """在独立线程里创建 Tk 对话框，避免阻塞事件循环线程。"""
     result = {"path": "", "error": ""}
+    # 线程不继承 contextvar，文案在进入线程前按当前语言取好
+    text_missing = t("system.dialog_missing")
+    text_failed = t("system.dialog_failed")
+    text_title = title or t("system.dialog_title_folder" if mode == "folder" else "system.dialog_title_file")
+    text_all_files = t("system.dialog_all_files")
     start_dir = initial or ""
     if start_dir and not os.path.isdir(start_dir):
         start_dir = os.path.dirname(start_dir)
@@ -34,7 +40,7 @@ def _open_dialog(mode: str, title: str, initial: str) -> str:
             import tkinter as tk
             from tkinter import filedialog
         except Exception:  # noqa: BLE001 - 缺少 tk 时给出可读提示
-            result["error"] = "当前环境缺少图形界面组件，无法打开文件选择框，请手动填写路径"
+            result["error"] = text_missing
             return
         root = None
         try:
@@ -45,20 +51,20 @@ def _open_dialog(mode: str, title: str, initial: str) -> str:
             if mode == "folder":
                 picked = filedialog.askdirectory(
                     parent=root,
-                    title=title or "选择文件夹",
+                    title=text_title,
                     initialdir=start_dir or None,
                     mustexist=True,
                 )
             else:
                 picked = filedialog.askopenfilename(
                     parent=root,
-                    title=title or "选择文件",
+                    title=text_title,
                     initialdir=start_dir or None,
-                    filetypes=[("所有文件", "*.*")],
+                    filetypes=[(text_all_files, "*.*")],
                 )
             result["path"] = picked or ""
         except Exception:  # noqa: BLE001 - 无图形界面时提示手动填写
-            result["error"] = "无法打开系统文件选择框，请手动填写路径"
+            result["error"] = text_failed
         finally:
             if root is not None:
                 root.destroy()
@@ -74,7 +80,7 @@ def _open_dialog(mode: str, title: str, initial: str) -> str:
 @router.post("/pick")
 def pick_path(payload: PickRequest, _: dict = Depends(current_user)):
     if payload.mode not in ("file", "folder"):
-        raise AppError("选择类型只能是 file 或 folder")
+        raise AppError(t("system.invalid_pick_mode"))
     with _dialog_lock:
         path = _open_dialog(payload.mode, payload.title, payload.initial)
     if not path:

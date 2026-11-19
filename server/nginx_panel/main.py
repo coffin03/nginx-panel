@@ -15,6 +15,7 @@ from .api import api_router
 from .core.config import settings
 from .core.db import init_db
 from .core.errors import AppError
+from .core.i18n import reset_locale, set_locale
 from .core.paths import web_dist_dir
 
 
@@ -52,6 +53,14 @@ def create_app() -> FastAPI:
         same_site="lax",
         https_only=False,
     )
+
+    @app.middleware("http")
+    async def locale_middleware(request: Request, call_next):
+        token = set_locale(request.headers.get("x-locale") or request.headers.get("accept-language"))
+        try:
+            return await call_next(request)
+        finally:
+            reset_locale(token)
 
     @app.exception_handler(AppError)
     async def app_error_handler(_: Request, exc: AppError):

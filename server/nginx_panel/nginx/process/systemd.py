@@ -1,5 +1,6 @@
 """systemd 管理的 nginx 适配器（Linux）。"""
 
+from ...core.i18n import t
 from .base import InstanceTarget, OpResult, ProcessAdapter, Status, read_pid, run_command
 
 
@@ -35,25 +36,25 @@ class SystemdAdapter(ProcessAdapter):
     def start(self) -> OpResult:
         res = self._systemctl("start")
         st = self.status()
-        return OpResult(res.ok and st.running, res.output or "已启动", res.exit_code, pid=st.pid, running=st.running)
+        return OpResult(res.ok and st.running, res.output or t("process.started_systemd"), res.exit_code, pid=st.pid, running=st.running)
 
     def stop(self) -> OpResult:
         res = self._systemctl("stop")
         st = self.status()
-        return OpResult(res.ok and not st.running, res.output or "已停止", res.exit_code, running=st.running)
+        return OpResult(res.ok and not st.running, res.output or t("process.stopped_systemd"), res.exit_code, running=st.running)
 
     def reload(self) -> OpResult:
         test = self.test()
         if not test.ok:
-            return OpResult(False, "配置校验失败，未执行 reload\n" + test.output, test.exit_code)
+            return OpResult(False, t("process.test_failed_reload", output=test.output), test.exit_code)
         res = self._systemctl("reload")
         st = self.status()
-        return OpResult(res.ok and st.running, res.output or "reload 成功", res.exit_code, pid=st.pid, running=st.running)
+        return OpResult(res.ok and st.running, res.output or t("process.reload_ok"), res.exit_code, pid=st.pid, running=st.running)
 
     def restart(self) -> OpResult:
         test = self.test()
         if not test.ok:
-            return OpResult(False, "配置校验失败，未执行 restart\n" + test.output, test.exit_code)
+            return OpResult(False, t("process.test_failed_restart", output=test.output), test.exit_code)
         res = self._systemctl("restart")
         st = self.status()
-        return OpResult(res.ok and st.running, res.output or "已重启", res.exit_code, pid=st.pid, running=st.running)
+        return OpResult(res.ok and st.running, res.output or t("process.restarted"), res.exit_code, pid=st.pid, running=st.running)

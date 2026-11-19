@@ -6,6 +6,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 
 from ..core.errors import AppError
+from ..core.i18n import t
 from ..core.security import current_user
 from ..services.files import _within
 from ..services.instances import get_instance, load_instance_tree, target_of
@@ -72,15 +73,15 @@ def tail(
                 path = candidate
                 break
     if not path:
-        raise AppError("日志文件不存在", 404)
+        raise AppError(t("log.not_found"), 404)
     allowed = any(_within(os.path.realpath(path), os.path.realpath(d)) for d in _log_dirs(inst))
     if not allowed:
-        raise AppError("不允许读取该路径", 403)
+        raise AppError(t("log.path_forbidden"), 403)
     try:
         with open(path, "rb") as fh:
             data = fh.read()
     except OSError as exc:
-        raise AppError(f"读取失败: {exc}", 500)
+        raise AppError(t("log.read_failed", error=exc), 500)
     text = data.decode("utf-8", "replace")
     all_lines = text.splitlines()
     return {

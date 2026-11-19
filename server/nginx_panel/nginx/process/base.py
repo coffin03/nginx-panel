@@ -7,6 +7,8 @@ import sys
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+from ...core.i18n import t
+
 
 @dataclass
 class OpResult:
@@ -141,8 +143,8 @@ class ProcessAdapter:
     def _read_status_from_pid(self) -> Status:
         pid = read_pid(self._pid_file)
         if pid and pid_alive(pid):
-            return Status(True, pid, "运行中")
-        return Status(False, None, "未运行")
+            return Status(True, pid, t("process.running"))
+        return Status(False, None, t("process.stopped"))
 
 
 def run_command(args: List[str], cwd: Optional[str] = None, timeout: int = 20) -> OpResult:
@@ -157,8 +159,8 @@ def run_command(args: List[str], cwd: Optional[str] = None, timeout: int = 20) -
         output = (decode_output(proc.stdout) + decode_output(proc.stderr)).strip()
         return OpResult(proc.returncode == 0, output, proc.returncode)
     except FileNotFoundError:
-        return OpResult(False, f"找不到命令或可执行文件: {args[0]}", 127)
+        return OpResult(False, t("process.command_missing", name=args[0]), 127)
     except subprocess.TimeoutExpired:
-        return OpResult(False, "命令超时", -1)
+        return OpResult(False, t("process.timeout"), -1)
     except OSError as exc:
-        return OpResult(False, f"执行失败: {exc}", -1)
+        return OpResult(False, t("process.exec_failed", error=exc), -1)

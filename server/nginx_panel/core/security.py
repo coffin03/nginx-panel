@@ -7,6 +7,7 @@ import bcrypt
 from fastapi import HTTPException, Request, status
 
 from .db import db
+from .i18n import t
 
 _LOGIN_FAILS: dict[str, list[float]] = {}
 MAX_FAILS = 8
@@ -53,10 +54,10 @@ def get_user_by_id(uid: int) -> Optional[dict]:
 
 def check_rate_limit(key: str) -> None:
     now = time.time()
-    fails = [t for t in _LOGIN_FAILS.get(key, []) if now - t < WINDOW]
+    fails = [ts for ts in _LOGIN_FAILS.get(key, []) if now - ts < WINDOW]
     _LOGIN_FAILS[key] = fails
     if len(fails) >= MAX_FAILS:
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "尝试次数过多，请稍后再试")
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, t("auth.too_many_attempts"))
 
 
 def record_failure(key: str) -> None:
@@ -70,14 +71,14 @@ def clear_failures(key: str) -> None:
 def current_user(request: Request) -> dict:
     uid = request.session.get("uid")
     if not uid:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "未登录")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, t("auth.not_logged_in"))
     user = get_user_by_id(int(uid))
     if not user:
         request.session.clear()
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "会话失效")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, t("auth.session_expired"))
     return user
 
 
 def require_setup_done() -> None:
     if user_count() == 0:
-        raise HTTPException(status.HTTP_428_PRECONDITION_REQUIRED, "尚未初始化管理员账号")
+        raise HTTPException(status.HTTP_428_PRECONDITION_REQUIRED, t("auth.not_initialized"))

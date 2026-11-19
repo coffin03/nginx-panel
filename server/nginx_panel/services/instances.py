@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from ..core.db import db
 from ..core.errors import AppError
+from ..core.i18n import t
 from ..nginx.process.base import InstanceTarget
 
 
@@ -24,7 +25,7 @@ def get_instance(instance_id: int) -> dict:
     with db() as conn:
         row = conn.execute("SELECT * FROM instance WHERE id=?", (instance_id,)).fetchone()
     if not row:
-        raise AppError("实例不存在", 404)
+        raise AppError(t("instance.not_found"), 404)
     return _row_to_dict(row)
 
 
@@ -37,23 +38,23 @@ def create_instance(data: dict) -> dict:
     unit = (data.get("systemd_unit") or "").strip()
 
     if not name:
-        raise AppError("实例名称不能为空")
+        raise AppError(t("instance.name_required"))
     if not binary:
-        raise AppError("nginx 可执行文件路径不能为空")
+        raise AppError(t("instance.binary_required"))
     if not prefix:
-        raise AppError("nginx 目录（prefix）不能为空")
+        raise AppError(t("instance.prefix_required"))
     if run_mode not in ("local", "systemd"):
-        raise AppError("运行模式只能是 local 或 systemd")
+        raise AppError(t("instance.run_mode_invalid"))
 
     prefix = os.path.abspath(prefix)
     if not os.path.isdir(prefix):
-        raise AppError(f"nginx 目录不存在: {prefix}")
+        raise AppError(t("instance.prefix_missing", path=prefix))
     if not os.path.isabs(conf_path):
         conf_abs = os.path.join(prefix, conf_path)
     else:
         conf_abs = conf_path
     if not os.path.isfile(conf_abs):
-        raise AppError(f"主配置文件不存在: {conf_abs}")
+        raise AppError(t("instance.conf_missing", path=conf_abs))
 
     with db() as conn:
         cur = conn.execute(
@@ -75,11 +76,11 @@ def update_instance(instance_id: int, data: dict) -> dict:
     unit = (data.get("systemd_unit", current["systemd_unit"]) or "").strip()
 
     if not name or not binary:
-        raise AppError("名称与可执行文件路径不能为空")
+        raise AppError(t("instance.name_binary_required"))
     if not os.path.isdir(prefix):
-        raise AppError(f"nginx 目录不存在: {prefix}")
+        raise AppError(t("instance.prefix_missing", path=prefix))
     if run_mode not in ("local", "systemd"):
-        raise AppError("运行模式只能是 local 或 systemd")
+        raise AppError(t("instance.run_mode_invalid"))
 
     with db() as conn:
         conn.execute(

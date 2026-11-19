@@ -4,6 +4,7 @@ import os
 from typing import Dict, List, Optional
 
 from ..core.errors import AppError
+from ..core.i18n import t
 from ..nginx import writer
 from ..nginx.ast import Node, SourceFile, TextEdit
 from ..nginx.includes import ConfTree, load_tree
@@ -161,7 +162,7 @@ def get_form(inst: dict) -> dict:
     if http is None:
         return {
             "readonly": True,
-            "reason": "主配置中没有找到 http 块",
+            "reason": t("form.no_http_block"),
             "servers": [],
             "upstreams": [],
             "files": hashes,
@@ -189,12 +190,12 @@ def get_form(inst: dict) -> dict:
 def _find_node(tree: ConfTree, file: str, start: int) -> Node:
     src = tree.get(file)
     if src is None:
-        raise AppError("文件已被删除，请刷新页面", 409)
+        raise AppError(t("form.file_deleted"), 409)
     for node in src.nodes:
         for n in node.walk():
             if n.name_start == start and n.file == src.path:
                 return n
-    raise AppError("配置位置已失效（可能被其他修改影响），请刷新页面", 409)
+    raise AppError(t("form.position_stale"), 409)
 
 
 def save_form(inst: dict, payload: dict, operator: str = "") -> dict:
@@ -209,23 +210,23 @@ def save_form(inst: dict, payload: dict, operator: str = "") -> dict:
         file = item.get("file")
         start = item.get("start")
         if not file or start is None:
-            raise AppError("表单修改缺少定位信息")
+            raise AppError(t("form.missing_location"))
         src = tree.get(file)
         if src is None:
-            raise AppError("文件不存在或已变更，请刷新页面", 409)
+            raise AppError(t("form.file_changed"), 409)
         node = _find_node(tree, file, int(start))
         if node.name not in ALLOWED_NAMES:
-            raise AppError(f"不允许通过表单修改指令: {node.name}")
+            raise AppError(t("form.directive_not_allowed", name=node.name))
         if item.get("delete"):
             if node.name in ("listen", "server", "location", "upstream"):
                 # 删除 listen 是允许的，但删块请走删除接口
                 if node.name != "listen":
-                    raise AppError(f"不支持在表单中删除 {node.name} 块")
+                    raise AppError(t("form.block_delete_unsupported", name=node.name))
             add(src, writer.delete_node(src, node))
         else:
             args = item.get("args")
             if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
-                raise AppError("参数格式错误")
+                raise AppError(t("form.invalid_args"))
             add(src, writer.set_args(src, node, args))
 
     for item in payload.get("inserts") or []:
@@ -233,27 +234,27 @@ def save_form(inst: dict, payload: dict, operator: str = "") -> dict:
         name = item.get("name")
         args = item.get("args") or []
         if not file or not name:
-            raise AppError("新增指令缺少文件或名称")
+            raise AppError(t("form.insert_missing_name"))
         if name not in ALLOWED_NAMES:
-            raise AppError(f"不允许通过表单新增指令: {name}")
+            raise AppError(t("form.insert_not_allowed", name=name))
         if not isinstance(args, list) or not all(isinstance(a, str) for a in args):
-            raise AppError("参数格式错误")
+            raise AppError(t("form.invalid_args"))
         src = tree.get(file)
         if src is None:
-            raise AppError("文件不存在，请刷新页面", 409)
+            raise AppError(t("form.file_missing"), 409)
         if item.get("parent_start") is not None:
             parent = _find_node(tree, file, int(item["parent_start"]))
             if parent.block is None:
-                raise AppError("目标位置不是块，无法插入")
+                raise AppError(t("form.target_not_block"))
             add(src, writer.append_child(src, parent, args, name))
         elif item.get("after_start") is not None:
             anchor = _find_node(tree, file, int(item["after_start"]))
             add(src, writer.insert_after(src, anchor, args, name))
         else:
-            raise AppError("新增指令缺少插入位置")
+            raise AppError(t("form.insert_missing_position"))
 
     if not edits_by_file:
-        raise AppError("没有需要保存的表单修改")
+        raise AppError(t("form.no_changes"))
 
     changes = []
     for path, edits in edits_by_file.items():
@@ -267,7 +268,7 @@ def save_form(inst: dict, payload: dict, operator: str = "") -> dict:
     return apply_changes(
         inst,
         changes,
-        message=payload.get("message") or "表单修改",
+        message=payload.get("message") or t("form.default_message"),
         operator=operator,
         reload=bool(payload.get("reload", True)),
         trigger="form",
