@@ -1,48 +1,81 @@
 <template>
   <div class="history-panel">
     <div class="toolbar">
-      <el-button :icon="Refresh" @click="load">刷新</el-button>
-      <span class="muted">每次应用配置都会自动生成快照，可对比差异并一键回滚</span>
+      <el-button :icon="Refresh" :loading="loading" @click="load">{{ t('common.refresh') }}</el-button>
+      <span class="muted">{{ t('history.tip') }}</span>
     </div>
 
     <el-table v-loading="loading" :data="snapshots" size="small" class="table" @row-click="openDetail">
-      <el-table-column prop="created_at" label="时间" width="165" />
-      <el-table-column prop="message" label="说明" min-width="200" show-overflow-tooltip />
-      <el-table-column label="来源" width="90" align="center">
+      <el-table-column prop="created_at" :label="t('history.time')" width="165" />
+      <el-table-column prop="message" :label="t('history.message')" min-width="200" show-overflow-tooltip />
+      <el-table-column :label="t('history.trigger')" width="90" align="center">
         <template #default="{ row }">
           <el-tag size="small" effect="plain">{{ triggerLabel(row.trigger) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="operator" label="操作人" width="110" align="center" />
-      <el-table-column prop="file_count" label="文件" width="70" align="center" />
-      <el-table-column label="校验" width="80" align="center">
+      <el-table-column prop="operator" :label="t('history.operator')" width="110" align="center" />
+      <el-table-column prop="file_count" :label="t('history.files')" width="70" align="center" />
+      <el-table-column :label="t('history.test')" width="80" align="center">
         <template #default="{ row }">
-          <el-tag v-if="row.test_ok === 1" size="small" type="success">通过</el-tag>
-          <el-tag v-else-if="row.test_ok === 0" size="small" type="danger">失败</el-tag>
+          <el-tag v-if="row.test_ok === 1" size="small" type="success">{{ t('history.pass') }}</el-tag>
+          <el-tag v-else-if="row.test_ok === 0" size="small" type="danger">{{ t('history.fail') }}</el-tag>
           <span v-else class="muted">-</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="136" align="center">
+      <el-table-column :label="t('history.actions')" width="136" align="center">
         <template #default="{ row }">
           <div class="ops">
-            <el-button size="small" text type="primary" @click.stop="openDetail(row)">查看</el-button>
-            <el-button size="small" text type="warning" @click.stop="restore(row)">回滚</el-button>
+            <el-button size="small" text type="primary" :loading="viewId === row.id" @click.stop="openDetail(row)">{{ t('history.view') }}</el-button>
+            <el-button size="small" text type="warning" :loading="restoreId === row.id" @click.stop="restore(row)">{{ t('history.restore') }}</el-button>
           </div>
         </template>
       </el-table-column>
       <template #empty>
-        <div class="empty-hint">暂无历史快照</div>
+        <div class="empty-hint">{{ t('history.empty') }}</div>
       </template>
     </el-table>
 
-    <el-drawer v-model="drawer" title="快照详情" size="60%" destroy-on-close append-to-body>
+    <div class="ops-section">
+      <div class="section-head">
+        <span class="section-title">{{ t('history.opsTitle') }}</span>
+        <span class="muted tiny">{{ t('history.opsTip') }}</span>
+      </div>
+      <el-table :data="operations" size="small" class="table">
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <pre class="op-detail mono">{{ row.detail || t('common.noOutput') }}</pre>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" :label="t('history.time')" width="165" />
+        <el-table-column :label="t('history.opAction')" width="130">
+          <template #default="{ row }">{{ actionLabel(row.action) }}</template>
+        </el-table-column>
+        <el-table-column :label="t('history.result')" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.ok ? 'success' : 'danger'" size="small" effect="plain">
+              {{ row.ok ? t('history.pass') : t('history.fail') }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column :label="t('history.opsSummary')" min-width="240">
+          <template #default="{ row }">
+            <span class="muted small">{{ firstLine(row.detail) }}</span>
+          </template>
+        </el-table-column>
+        <template #empty>
+          <div class="empty-hint muted">{{ t('history.opsEmpty') }}</div>
+        </template>
+      </el-table>
+    </div>
+
+    <el-drawer v-model="drawer" :title="t('history.detailTitle')" size="60%" destroy-on-close append-to-body>
       <template v-if="detail">
         <div class="detail-head">
           <div>
             <div class="mono">{{ detail.created_at }} · {{ triggerLabel(detail.trigger) }}</div>
             <div class="muted">{{ detail.message }}</div>
           </div>
-          <el-button type="warning" plain :loading="restoring" @click="restore(detail)">回滚到此快照</el-button>
+          <el-button type="warning" plain :loading="restoring" @click="restore(detail)">{{ t('history.restoreHere') }}</el-button>
         </div>
         <el-radio-group v-model="currentPath" size="small" class="file-tabs" @change="loadDiff">
           <el-radio-button v-for="file in detail.files" :key="file.path" :value="file.path">
@@ -51,14 +84,14 @@
         </el-radio-group>
         <div class="diff-hint muted">
           <span class="mono">{{ currentPath }}</span>
-          <span>· 绿色为当前新增，红色为快照中被删除</span>
+          <span>{{ t('history.diffHint') }}</span>
         </div>
         <pre v-if="diff" class="diff-view"><span
           v-for="(line, idx) in diffLines"
           :key="idx"
           :class="line.cls"
         >{{ line.text }}</span></pre>
-        <div v-else class="empty-hint">{{ diffLoading ? '正在计算差异…' : '该文件与当前内容一致' }}</div>
+        <div v-else class="empty-hint">{{ diffLoading ? t('history.diffLoading') : t('history.diffSame') }}</div>
       </template>
     </el-drawer>
   </div>
@@ -66,23 +99,29 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { apiGet, apiPost } from '../api'
+import { holdLoading } from '../utils/busy'
 
 const props = defineProps({
   instanceId: { type: [Number, String], required: true }
 })
 const emit = defineEmits(['restored'])
+const { t, te } = useI18n()
 
 const loading = ref(false)
 const snapshots = ref([])
+const operations = ref([])
 const drawer = ref(false)
 const detail = ref(null)
 const currentPath = ref('')
 const diff = ref('')
 const diffLoading = ref(false)
 const restoring = ref(false)
+const viewId = ref(null)
+const restoreId = ref(null)
 
 const diffLines = computed(() => {
   return diff.value.split('\n').map((text) => {
@@ -95,17 +134,8 @@ const diffLines = computed(() => {
 })
 
 function triggerLabel(trigger) {
-  return (
-    {
-      manual: '手动',
-      editor: '编辑器',
-      form: '表单',
-      batch: '批量',
-      restore: '回滚',
-      auto: '外部修改',
-      system: '系统'
-    }[trigger] || trigger || '其他'
-  )
+  const key = `history.trigger${(trigger || 'other').replace(/^./, (c) => c.toUpperCase())}`
+  return te(key) ? t(key) : trigger || t('history.triggerOther')
 }
 
 function shortName(path) {
@@ -114,19 +144,50 @@ function shortName(path) {
 }
 
 async function load() {
+  const started = Date.now()
   loading.value = true
   try {
     snapshots.value = await apiGet(`/instances/${props.instanceId}/snapshots?limit=100`)
   } catch (e) {
     /* 已提示 */
   } finally {
+    await holdLoading(started)
     loading.value = false
   }
+  loadOps()
+}
+
+async function loadOps() {
+  try {
+    operations.value = await apiGet(`/instances/${props.instanceId}/operations`)
+  } catch (e) {
+    operations.value = []
+  }
+}
+
+const ACTION_KEYS = {
+  start: 'ops.start',
+  stop: 'ops.stop',
+  reload: 'ops.reload',
+  restart: 'ops.restart',
+  test: 'ops.test',
+  'renew-cert': 'history.opRenew'
+}
+
+function actionLabel(action) {
+  const key = ACTION_KEYS[action]
+  return key ? t(key) : action
+}
+
+function firstLine(detail) {
+  const text = (detail || '').split('\n').find((line) => line.trim()) || ''
+  return text.length > 120 ? text.slice(0, 120) + '…' : text
 }
 
 onMounted(load)
 
 async function openDetail(row) {
+  viewId.value = row.id
   try {
     detail.value = await apiGet(`/instances/${props.instanceId}/snapshots/${row.id}`)
     drawer.value = true
@@ -135,6 +196,8 @@ async function openDetail(row) {
     if (currentPath.value) await loadDiff()
   } catch (e) {
     /* 已提示 */
+  } finally {
+    viewId.value = null
   }
 }
 
@@ -155,18 +218,19 @@ async function loadDiff() {
 
 async function restore(row) {
   try {
-    await ElMessageBox.confirm(
-      `将把配置恢复到「${row.created_at}」的快照状态，并自动校验；当前未保存的修改会丢失。`,
-      '回滚配置',
-      { type: 'warning', confirmButtonText: '回滚', cancelButtonText: '取消' }
-    )
+    await ElMessageBox.confirm(t('history.confirm', { time: row.created_at }), t('history.confirmTitle'), {
+      type: 'warning',
+      confirmButtonText: t('history.confirmOk'),
+      cancelButtonText: t('common.cancel')
+    })
   } catch (e) {
     return
   }
   restoring.value = true
+  restoreId.value = row.id
   try {
     const res = await apiPost(`/instances/${props.instanceId}/snapshots/${row.id}/restore`, { reload: true })
-    ElMessage.success(res.reloaded ? '已回滚并重载 nginx' : '已回滚配置')
+    ElMessage.success(res.reloaded ? t('history.restoredReloaded') : t('history.restored'))
     drawer.value = false
     await load()
     emit('restored', res)
@@ -174,6 +238,7 @@ async function restore(row) {
     /* 已提示 */
   } finally {
     restoring.value = false
+    restoreId.value = null
   }
 }
 </script>
@@ -234,5 +299,37 @@ async function restore(row) {
 }
 .empty-hint {
   padding: 24px;
+}
+.ops-section {
+  margin-top: 18px;
+}
+.section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.section-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.tiny {
+  font-size: 11px;
+}
+.small {
+  font-size: 12px;
+}
+.muted {
+  color: var(--ngp-muted);
+}
+.op-detail {
+  margin: 0;
+  padding: 8px 12px;
+  max-height: 200px;
+  overflow: auto;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 </style>

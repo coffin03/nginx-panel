@@ -2,21 +2,21 @@
   <div class="page">
     <div class="page-head">
       <div>
-        <h2 class="page-title">nginx 实例</h2>
-        <p class="page-sub">管理本机一个或多个 nginx 安装目录 · 每次改动自动校验并可回滚</p>
+        <h2 class="page-title">{{ t('dashboard.title') }}</h2>
+        <p class="page-sub">{{ t('dashboard.subtitle') }}</p>
       </div>
       <div class="row">
-        <el-button :icon="Refresh" @click="load">刷新</el-button>
-        <el-button type="primary" :icon="Plus" @click="openCreate">添加实例</el-button>
+        <el-button :icon="Refresh" :loading="loading" @click="load()">{{ t('common.refresh') }}</el-button>
+        <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('dashboard.add') }}</el-button>
       </div>
     </div>
 
-    <div v-if="loading" class="panel empty-hint">正在读取实例…</div>
+    <div v-if="loading" class="panel empty-hint">{{ t('dashboard.loading') }}</div>
     <div v-else-if="!instances.length" class="panel empty-hint empty-state">
       <img class="empty-logo" src="/favicon.svg" alt="logo" />
-      <p class="empty-title">还没有添加 nginx 实例</p>
-      <p class="muted">点击「添加实例」，选择本机 nginx 目录即可开始管理。</p>
-      <el-button type="primary" :icon="Plus" @click="openCreate">添加第一个实例</el-button>
+      <p class="empty-title">{{ t('dashboard.emptyTitle') }}</p>
+      <p class="muted">{{ t('dashboard.emptyHint') }}</p>
+      <el-button type="primary" :icon="Plus" @click="openCreate">{{ t('dashboard.addFirst') }}</el-button>
     </div>
 
     <div v-else class="grid">
@@ -30,13 +30,13 @@
             </div>
           </div>
           <el-tag :type="inst.status?.running ? 'success' : 'info'" size="small" effect="light">
-            {{ inst.status?.running ? `运行中 · ${inst.status.pid}` : '已停止' }}
+            {{ inst.status?.running ? t('dashboard.runningWithPid', { pid: inst.status.pid }) : t('dashboard.stopped') }}
           </el-tag>
         </div>
         <div class="card-meta">
           <span class="meta-item">
             <el-icon><Cpu /></el-icon>
-            {{ inst.run_mode === 'systemd' ? `systemd: ${inst.systemd_unit || 'nginx'}` : '本地进程' }}
+            {{ inst.run_mode === 'systemd' ? `systemd: ${inst.systemd_unit || 'nginx'}` : t('dashboard.localProcess') }}
           </span>
           <span class="meta-item">
             <el-icon><Document /></el-icon>
@@ -44,32 +44,32 @@
           </span>
         </div>
         <div class="card-actions">
-          <el-button size="small" type="primary" plain @click="open(inst)">管理</el-button>
+          <el-button size="small" type="primary" plain @click="open(inst)">{{ t('dashboard.manage') }}</el-button>
           <el-button
             v-if="!inst.status?.running"
             size="small"
             :loading="busy[inst.id] === 'start'"
             @click="operate(inst, 'start')"
-            >启动</el-button
+            >{{ t('ops.start') }}</el-button
           >
           <template v-else>
             <el-button size="small" :loading="busy[inst.id] === 'reload'" @click="operate(inst, 'reload')"
-              >重载</el-button
+              >{{ t('ops.reload') }}</el-button
             >
             <el-button size="small" :loading="busy[inst.id] === 'stop'" @click="operate(inst, 'stop')"
-              >停止</el-button
+              >{{ t('ops.stop') }}</el-button
             >
           </template>
           <el-button size="small" :loading="busy[inst.id] === 'test'" @click="operate(inst, 'test')"
-            >测试配置</el-button
+            >{{ t('ops.test') }}</el-button
           >
           <el-dropdown trigger="click" @command="(cmd) => onCommand(cmd, inst)">
             <el-button size="small" :icon="MoreFilled" />
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="edit">编辑实例</el-dropdown-item>
-                <el-dropdown-item command="restart">重启</el-dropdown-item>
-                <el-dropdown-item command="delete" divided>删除实例</el-dropdown-item>
+                <el-dropdown-item command="edit">{{ t('dashboard.edit') }}</el-dropdown-item>
+                <el-dropdown-item command="restart">{{ t('dashboard.restart') }}</el-dropdown-item>
+                <el-dropdown-item command="delete" divided>{{ t('dashboard.delete') }}</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
@@ -77,49 +77,68 @@
       </div>
     </div>
 
-    <el-dialog v-model="dialog" :title="form.id ? '编辑实例' : '添加实例'" width="560px">
-      <el-form :model="form" label-width="110px">
-        <el-form-item label="名称">
-          <el-input v-model="form.name" placeholder="例如：本机 nginx" />
+    <el-dialog v-model="dialog" :title="form.id ? t('dashboard.edit') : t('dashboard.addTitle')" width="560px">
+      <el-form :model="form" :label-width="locale === 'en' ? '130px' : '110px'">
+        <el-form-item :label="t('dashboard.name')">
+          <el-input v-model="form.name" :placeholder="t('dashboard.namePlaceholder')" />
         </el-form-item>
-        <el-form-item label="nginx 目录">
+        <el-form-item :label="t('dashboard.prefixLabel')">
           <div class="path-row">
-            <PathInput v-model="form.prefix" mode="folder" placeholder="例如：C:\nginx" title="选择 nginx 安装目录" />
-            <el-button @click="detect">自动检测</el-button>
+            <PathInput
+              v-model="form.prefix"
+              mode="folder"
+              :placeholder="t('dashboard.prefixPlaceholder')"
+              :title="t('dashboard.prefixTitle')"
+            />
+            <el-button :loading="detecting" @click="detect">{{ t('dashboard.detect') }}</el-button>
           </div>
         </el-form-item>
-        <el-form-item label="可执行文件">
-          <PathInput v-model="form.binary" mode="file" placeholder="例如：C:\nginx\nginx.exe 或 nginx" title="选择 nginx 可执行文件" />
+        <el-form-item :label="t('dashboard.binaryLabel')">
+          <PathInput
+            v-model="form.binary"
+            mode="file"
+            :placeholder="t('dashboard.binaryPlaceholder')"
+            :title="t('dashboard.binaryTitle')"
+          />
         </el-form-item>
-        <el-form-item label="主配置">
-          <PathInput v-model="form.conf_path" mode="file" placeholder="conf/nginx.conf" title="选择主配置文件" />
+        <el-form-item :label="t('dashboard.confLabel')">
+          <PathInput
+            v-model="form.conf_path"
+            mode="file"
+            :placeholder="t('dashboard.confPlaceholder')"
+            :title="t('dashboard.confTitle')"
+          />
         </el-form-item>
-        <el-form-item label="运行模式">
+        <el-form-item :label="t('dashboard.runMode')">
           <el-radio-group v-model="form.run_mode">
-            <el-radio value="local">直接管理进程</el-radio>
-            <el-radio value="systemd">systemd 服务</el-radio>
+            <el-radio value="local">{{ t('dashboard.runLocal') }}</el-radio>
+            <el-radio value="systemd">{{ t('dashboard.runSystemd') }}</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item v-if="form.run_mode === 'systemd'" label="服务名">
+        <el-form-item v-if="form.run_mode === 'systemd'" :label="t('dashboard.serviceName')">
           <el-input v-model="form.systemd_unit" placeholder="nginx" />
         </el-form-item>
       </el-form>
       <div v-if="candidates.length" class="candidates">
-        <div class="muted">检测到的 nginx：</div>
+        <div class="muted">{{ t('dashboard.detected') }}</div>
         <div v-for="c in candidates" :key="c.binary" class="candidate" @click="applyCandidate(c)">
           <span class="mono">{{ c.prefix }}</span>
           <el-tag size="small" type="success" effect="plain">{{ c.binary }}</el-tag>
         </div>
       </div>
       <template #footer>
-        <el-button @click="dialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <el-button @click="dialog = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="save">{{ t('common.save') }}</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="outputDialog" title="执行结果" width="640px">
-      <el-alert :type="outputOk ? 'success' : 'error'" :closable="false" :title="outputOk ? '执行成功' : '执行失败'" />
-      <pre class="output mono">{{ outputText || '（无输出）' }}</pre>
+    <el-dialog v-model="outputDialog" :title="t('dashboard.outputTitle')" width="640px">
+      <el-alert
+        :type="outputOk ? 'success' : 'error'"
+        :closable="false"
+        :title="outputOk ? t('dashboard.outputOk') : t('dashboard.outputFail')"
+      />
+      <pre class="output mono">{{ outputText || t('common.noOutput') }}</pre>
     </el-dialog>
   </div>
 </template>
@@ -127,17 +146,21 @@
 <script setup>
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Cpu, Document, MoreFilled, Plus, Refresh } from '@element-plus/icons-vue'
 import PathInput from '../components/PathInput.vue'
 import { apiDelete, apiGet, apiPost, apiPut } from '../api'
+import { holdLoading } from '../utils/busy'
 
 const router = useRouter()
+const { t, locale } = useI18n()
 const instances = ref([])
 const loading = ref(true)
 const busy = reactive({})
 const dialog = ref(false)
 const saving = ref(false)
+const detecting = ref(false)
 const candidates = ref([])
 const outputDialog = ref(false)
 const outputText = ref('')
@@ -157,12 +180,14 @@ const form = reactive(emptyForm())
 let timer = null
 
 async function load(silent = false) {
+  const started = Date.now()
   if (!silent) loading.value = true
   try {
     instances.value = await apiGet('/instances', { quiet: silent })
   } catch (e) {
     /* 已提示 */
   } finally {
+    if (!silent) await holdLoading(started)
     loading.value = false
   }
 }
@@ -198,12 +223,17 @@ function openEdit(inst) {
 }
 
 async function detect() {
+  const started = Date.now()
+  detecting.value = true
   try {
     const data = await apiGet('/instances/system/detect')
     candidates.value = data.candidates || []
-    if (!candidates.value.length) ElMessage.info('未在常见路径发现 nginx，请手动填写')
+    if (!candidates.value.length) ElMessage.info(t('dashboard.noCandidates'))
   } catch (e) {
     /* 已提示 */
+  } finally {
+    await holdLoading(started)
+    detecting.value = false
   }
 }
 
@@ -211,12 +241,12 @@ function applyCandidate(c) {
   form.prefix = c.prefix
   form.binary = c.binary
   form.conf_path = c.conf_path
-  if (!form.name) form.name = '本机 nginx'
+  if (!form.name) form.name = t('dashboard.defaultName')
 }
 
 async function save() {
   if (!form.name || !form.prefix || !form.binary) {
-    ElMessage.warning('请填写名称、nginx 目录和可执行文件')
+    ElMessage.warning(t('dashboard.required'))
     return
   }
   saving.value = true
@@ -231,7 +261,7 @@ async function save() {
     }
     if (form.id) await apiPut(`/instances/${form.id}`, payload)
     else await apiPost('/instances', payload)
-    ElMessage.success('已保存')
+    ElMessage.success(t('dashboard.saved'))
     dialog.value = false
     await load(true)
   } catch (e) {
@@ -248,7 +278,7 @@ async function operate(inst, action) {
     outputOk.value = res.ok
     outputText.value = res.output || ''
     if (!res.ok) outputDialog.value = true
-    else ElMessage.success(`${label(action)}成功`)
+    else ElMessage.success(t('ops.success', { action: label(action) }))
     await load(true)
   } catch (e) {
     outputOk.value = false
@@ -260,7 +290,7 @@ async function operate(inst, action) {
 }
 
 function label(action) {
-  return { start: '启动', stop: '停止', reload: '重载', restart: '重启', test: '配置测试' }[action] || action
+  return t(`ops.${action}`)
 }
 
 async function onCommand(cmd, inst) {
@@ -268,9 +298,13 @@ async function onCommand(cmd, inst) {
   if (cmd === 'restart') operate(inst, 'restart')
   if (cmd === 'delete') {
     try {
-      await ElMessageBox.confirm(`确定删除实例「${inst.name}」？不会删除 nginx 文件。`, '删除实例', { type: 'warning' })
+      await ElMessageBox.confirm(
+        t('dashboard.deleteConfirm', { name: inst.name }),
+        t('dashboard.deleteTitle'),
+        { type: 'warning' }
+      )
       await apiDelete(`/instances/${inst.id}`)
-      ElMessage.success('已删除')
+      ElMessage.success(t('dashboard.deleted'))
       await load(true)
     } catch (e) {
       /* 取消或已提示 */

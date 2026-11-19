@@ -2,9 +2,9 @@
   <div class="instance-page">
     <div class="head">
       <div class="head-left">
-        <el-button text :icon="ArrowLeft" @click="router.push('/')">返回</el-button>
+        <el-button text :icon="ArrowLeft" @click="router.push('/')">{{ t('instance.back') }}</el-button>
         <div class="title-block">
-          <h2 class="title">{{ instance?.name || '实例' }}</h2>
+          <h2 class="title">{{ instance?.name || t('instance.fallbackTitle') }}</h2>
           <div class="meta muted mono">
             {{ instance?.prefix }} · {{ instance?.conf_path }}
             <span v-if="instance?.run_mode === 'systemd'"> · systemd: {{ instance?.systemd_unit || 'nginx' }}</span>
@@ -12,45 +12,46 @@
         </div>
         <span class="status-pill" :class="{ on: running }">
           <i class="status-dot" />
-          {{ running ? `运行中${pid ? ' · ' + pid : ''}` : '已停止' }}
+          {{ running ? (pid ? t('instance.runningWithPid', { pid }) : t('instance.running')) : t('instance.stopped') }}
         </span>
-        <el-tag v-if="confErrors.length" type="warning" size="small" effect="plain">配置有告警</el-tag>
+        <el-tag v-if="confErrors.length" type="warning" size="small" effect="plain">{{ t('instance.confWarnings') }}</el-tag>
       </div>
       <div class="toolbar">
         <el-button v-if="!running" size="small" type="primary" :loading="opsBusy === 'start'" @click="operate('start')"
-          >启动</el-button
+          >{{ t('ops.start') }}</el-button
         >
         <template v-else>
-          <el-button size="small" :loading="opsBusy === 'reload'" @click="operate('reload')">重载</el-button>
-          <el-button size="small" :loading="opsBusy === 'restart'" @click="operate('restart')">重启</el-button>
-          <el-button size="small" :loading="opsBusy === 'stop'" @click="operate('stop')">停止</el-button>
+          <el-button size="small" :loading="opsBusy === 'reload'" @click="operate('reload')">{{ t('ops.reload') }}</el-button>
+          <el-button size="small" :loading="opsBusy === 'restart'" @click="operate('restart')">{{ t('ops.restart') }}</el-button>
+          <el-button size="small" :loading="opsBusy === 'stop'" @click="operate('stop')">{{ t('ops.stop') }}</el-button>
         </template>
-        <el-button size="small" :loading="opsBusy === 'test'" @click="operate('test')">测试配置</el-button>
-        <el-button size="small" :icon="Refresh" circle @click="reloadAll" />
+        <el-button size="small" :loading="opsBusy === 'test'" @click="operate('test')">{{ t('ops.test') }}</el-button>
+        <el-button size="small" type="primary" plain :icon="Plus" @click="siteDialog = true">{{ t('site.new') }}</el-button>
+        <el-button size="small" :icon="Refresh" circle :loading="refreshing" @click="reloadAll" />
       </div>
     </div>
 
     <el-tabs v-model="tab" class="instance-tabs">
-      <el-tab-pane label="文件编辑" name="files">
+      <el-tab-pane :label="t('instance.tabFiles')" name="files">
         <div class="editor-layout">
           <div class="sidebar panel">
             <FileTree :files="files" :active="activePath" @select="selectFile" />
           </div>
-          <div class="editor-area">
+          <div class="editor-area" v-loading="fileLoading">
             <div class="editor-head panel">
-              <div class="path mono" :title="activePath">{{ activePath || '请选择左侧配置文件' }}</div>
-              <span v-if="dirty" class="dirty-dot" title="有未保存的修改"></span>
+              <div class="path mono" :title="activePath">{{ activePath || t('instance.selectFile') }}</div>
+              <span v-if="dirty" class="dirty-dot" :title="t('instance.dirtyTitle')"></span>
               <span class="grow"></span>
               <span v-if="activeFile" class="muted small mono">hash {{ (baseHash || '').slice(0, 8) }}</span>
-              <el-button size="small" :disabled="!dirty" @click="revert">撤销修改</el-button>
-              <el-button size="small" :disabled="!activeFile" @click="reloadActive">重新载入</el-button>
+              <el-button size="small" :disabled="!dirty" @click="revert">{{ t('instance.revert') }}</el-button>
+              <el-button size="small" :loading="reloadingActive" :disabled="!activeFile" @click="reloadActive">{{ t('instance.reloadActive') }}</el-button>
               <el-button
                 size="small"
                 type="primary"
                 :disabled="!dirty || !editable"
                 :loading="saving"
                 @click="openSave"
-                >保存并应用</el-button
+                >{{ t('instance.saveApply') }}</el-button
               >
             </div>
             <el-alert
@@ -59,7 +60,7 @@
               type="warning"
               :closable="false"
               show-icon
-              :title="`语法提示：${parseError}`"
+              :title="t('instance.parseHint', { error: parseError })"
             />
             <el-alert
               v-if="!editable && activeFile"
@@ -67,54 +68,70 @@
               type="info"
               :closable="false"
               show-icon
-              title="该文件不是文本配置，无法编辑"
+              :title="t('instance.notText')"
             />
             <CodeEditor v-model="content" :readonly="!editable" class="editor" @save="openSave" />
           </div>
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="结构化表单" name="form" lazy>
+      <el-tab-pane :label="t('instance.tabForm')" name="form" lazy>
         <FormPanel :key="formKey" :instance-id="id" @applied="onApplied" />
       </el-tab-pane>
 
-      <el-tab-pane label="历史记录" name="history" lazy>
+      <el-tab-pane :label="t('instance.tabHistory')" name="history" lazy>
         <HistoryPanel :key="historyKey" :instance-id="id" @restored="onApplied" />
       </el-tab-pane>
 
-      <el-tab-pane label="日志" name="logs" lazy>
+      <el-tab-pane :label="t('instance.tabLogs')" name="logs" lazy>
         <LogsPanel :instance-id="id" />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('instance.tabSites')" name="sites" lazy>
+        <SitesPanel :key="sitesKey" :instance-id="id" @changed="onApplied" />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('instance.tabCerts')" name="certs" lazy>
+        <CertPanel :instance-id="id" />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('instance.tabChecks')" name="checks" lazy>
+        <ChecksPanel :key="checksKey" :instance-id="id" />
+      </el-tab-pane>
+
+      <el-tab-pane :label="t('instance.tabBackup')" name="backup" lazy>
+        <BackupPanel :key="backupKey" :instance-id="id" @applied="onApplied" />
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="saveDialog" title="应用配置修改" width="540px">
-      <div class="save-tip muted">
-        保存后会写入磁盘并执行 <span class="mono">nginx -t</span> 校验；校验失败会自动还原并保留快照。
-      </div>
-      <el-input v-model="saveMessage" type="textarea" :rows="2" placeholder="修改说明（会记录到历史中）" />
-      <el-checkbox v-model="doReload" class="save-reload">校验通过后重载 nginx（推荐）</el-checkbox>
+    <SiteWizard v-model="siteDialog" :instance-id="id" @created="onSiteCreated" />
+
+    <el-dialog v-model="saveDialog" :title="t('instance.saveTitle')" width="540px">
+      <div class="save-tip muted">{{ t('instance.saveTip', { cmd: 'nginx -t' }) }}</div>
+      <el-input v-model="saveMessage" type="textarea" :rows="2" :placeholder="t('instance.saveMessagePlaceholder')" />
+      <el-checkbox v-model="doReload" class="save-reload">{{ t('instance.saveReload') }}</el-checkbox>
       <template #footer>
-        <el-button @click="saveDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存并应用</el-button>
+        <el-button @click="saveDialog = false">{{ t('common.cancel') }}</el-button>
+        <el-button type="primary" :loading="saving" @click="save">{{ t('instance.saveApply') }}</el-button>
       </template>
     </el-dialog>
 
     <el-dialog v-model="errorDialog" :title="errorTitle" width="720px">
       <el-alert type="error" :closable="false" :title="errorMessage" />
       <el-table v-if="errorErrors.length" :data="errorErrors" size="small" class="err-table">
-        <el-table-column prop="level" label="级别" width="80" />
-        <el-table-column prop="message" label="信息" min-width="220" />
-        <el-table-column prop="file" label="文件" width="200" show-overflow-tooltip />
-        <el-table-column prop="line" label="行" width="70" />
+        <el-table-column prop="level" :label="t('instance.level')" width="80" />
+        <el-table-column prop="message" :label="t('instance.info')" min-width="220" />
+        <el-table-column prop="file" :label="t('instance.file')" width="200" show-overflow-tooltip />
+        <el-table-column prop="line" :label="t('instance.line')" width="70" />
       </el-table>
       <div v-if="errorConflicts.length" class="conflicts">
-        <div class="muted">以下文件已在磁盘上被其他程序修改：</div>
+        <div class="muted">{{ t('instance.conflictHint') }}</div>
         <div v-for="c in errorConflicts" :key="c.path" class="mono conflict-item">{{ c.path }}</div>
       </div>
       <pre v-if="errorOutput" class="output mono">{{ errorOutput }}</pre>
       <template #footer>
-        <el-button v-if="errorConflicts.length" @click="reloadAll">重新加载文件</el-button>
-        <el-button type="primary" @click="errorDialog = false">知道了</el-button>
+        <el-button v-if="errorConflicts.length" :loading="refreshing" @click="reloadAll">{{ t('instance.reloadFiles') }}</el-button>
+        <el-button type="primary" @click="errorDialog = false">{{ t('instance.gotIt') }}</el-button>
       </template>
     </el-dialog>
   </div>
@@ -123,20 +140,28 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowLeft, Refresh } from '@element-plus/icons-vue'
+import { ArrowLeft, Plus, Refresh } from '@element-plus/icons-vue'
 import { apiGet, apiPost, apiPut } from '../api'
+import { holdLoading } from '../utils/busy'
+import BackupPanel from '../components/BackupPanel.vue'
+import CertPanel from '../components/CertPanel.vue'
+import ChecksPanel from '../components/ChecksPanel.vue'
 import CodeEditor from '../components/CodeEditor.vue'
 import FileTree from '../components/FileTree.vue'
 import FormPanel from '../components/FormPanel.vue'
 import HistoryPanel from '../components/HistoryPanel.vue'
 import LogsPanel from '../components/LogsPanel.vue'
+import SiteWizard from '../components/SiteWizard.vue'
+import SitesPanel from '../components/SitesPanel.vue'
 
 const props = defineProps({
   id: { type: [String, Number], required: true }
 })
 const id = computed(() => props.id)
 const router = useRouter()
+const { t } = useI18n()
 
 const instance = ref(null)
 const tab = ref('files')
@@ -149,16 +174,23 @@ const fileEol = ref('\n')
 const baseHash = ref('')
 const parseError = ref('')
 const saving = ref(false)
+const refreshing = ref(false)
+const reloadingActive = ref(false)
+const fileLoading = ref(false)
 const opsBusy = ref('')
 const formKey = ref(0)
 const historyKey = ref(0)
+const sitesKey = ref(0)
+const checksKey = ref(0)
+const backupKey = ref(0)
+const siteDialog = ref(false)
 
 const saveDialog = ref(false)
 const saveMessage = ref('')
 const doReload = ref(true)
 
 const errorDialog = ref(false)
-const errorTitle = ref('操作失败')
+const errorTitle = ref('')
 const errorMessage = ref('')
 const errorOutput = ref('')
 const errorErrors = ref([])
@@ -176,10 +208,10 @@ const dirty = computed(() => !!activeFile.value && content.value !== originalCon
 function triggerLabel(stage) {
   return (
     {
-      test: '配置校验失败（已自动还原）',
-      reload: '重载失败（已自动回滚）',
-      health: '健康检查失败（已自动回滚）'
-    }[stage] || '操作失败'
+      test: t('instance.stageTest'),
+      reload: t('instance.stageReload'),
+      health: t('instance.stageHealth')
+    }[stage] || t('instance.errorTitle')
   )
 }
 
@@ -235,17 +267,24 @@ async function selectFile(file) {
   if (file.path === activePath.value) return
   if (dirty.value) {
     try {
-      await ElMessageBox.confirm('当前文件有未保存的修改，切换后会丢失，是否继续？', '未保存的修改', {
+      await ElMessageBox.confirm(t('instance.unsavedConfirm'), t('instance.unsavedTitle'), {
         type: 'warning',
-        confirmButtonText: '放弃修改',
-        cancelButtonText: '取消'
+        confirmButtonText: t('instance.discard'),
+        cancelButtonText: t('common.cancel')
       })
     } catch (e) {
       return
     }
   }
   activeFile.value = file
-  await loadFile(file)
+  const started = Date.now()
+  fileLoading.value = true
+  try {
+    await loadFile(file)
+  } finally {
+    await holdLoading(started)
+    fileLoading.value = false
+  }
 }
 
 function revert() {
@@ -256,26 +295,35 @@ async function reloadActive() {
   if (!activeFile.value) return
   if (dirty.value) {
     try {
-      await ElMessageBox.confirm('重新载入会丢弃未保存的修改，是否继续？', '重新载入', { type: 'warning' })
+      await ElMessageBox.confirm(t('instance.reloadConfirm'), t('instance.reloadTitle'), { type: 'warning' })
     } catch (e) {
       return
     }
   }
-  await loadFile(activeFile.value)
-  ElMessage.success('已重新载入')
+  reloadingActive.value = true
+  const started = Date.now()
+  try {
+    await loadFile(activeFile.value)
+    ElMessage.success(t('instance.reloaded'))
+  } finally {
+    await holdLoading(started)
+    reloadingActive.value = false
+  }
 }
 
 function openSave() {
   if (!dirty.value) {
-    ElMessage.info('没有需要保存的修改')
+    ElMessage.info(t('instance.noChanges'))
     return
   }
   if (!editable.value) {
-    ElMessage.warning('该文件不支持编辑')
+    ElMessage.warning(t('instance.notEditable'))
     return
   }
   if (!saveMessage.value) {
-    saveMessage.value = `手动编辑 ${activeFile.value?.rel || activeFile.value?.name || ''}`
+    saveMessage.value = t('instance.manualMessage', {
+      file: activeFile.value?.rel || activeFile.value?.name || ''
+    })
   }
   saveDialog.value = true
 }
@@ -288,11 +336,11 @@ async function save() {
       path: activePath.value,
       content: fileEol.value === '\r\n' ? content.value.replace(/\n/g, '\r\n') : content.value,
       base_hash: baseHash.value,
-      message: saveMessage.value || '编辑配置文件',
+      message: saveMessage.value || t('instance.editMessage'),
       reload: doReload.value
     })
     saveDialog.value = false
-    ElMessage.success(doReload.value ? '已保存并重载 nginx' : '已保存')
+    ElMessage.success(doReload.value ? t('instance.savedReloaded') : t('instance.saved'))
     await afterApply()
   } catch (e) {
     saveDialog.value = false
@@ -305,6 +353,9 @@ async function save() {
 async function afterApply() {
   formKey.value += 1
   historyKey.value += 1
+  sitesKey.value += 1
+  checksKey.value += 1
+  backupKey.value += 1
   await Promise.all([loadStatus(), loadTree()])
   if (activeFile.value) await loadFile(activeFile.value)
 }
@@ -312,7 +363,7 @@ async function afterApply() {
 function showError(e) {
   const detail = e.detail || {}
   errorTitle.value = triggerLabel(detail.stage)
-  errorMessage.value = e.message || '操作失败'
+  errorMessage.value = e.message || t('instance.errorTitle')
   errorOutput.value = detail.output || ''
   errorErrors.value = detail.errors || []
   errorConflicts.value = detail.conflicts || []
@@ -323,15 +374,27 @@ function onApplied() {
   afterApply()
 }
 
+async function onSiteCreated() {
+  tab.value = 'files'
+  await afterApply()
+}
+
 async function reloadAll() {
-  errorDialog.value = false
-  await loadInstance()
-  await loadTree()
-  if (activeFile.value) await loadFile(activeFile.value)
+  const started = Date.now()
+  refreshing.value = true
+  try {
+    errorDialog.value = false
+    await loadInstance()
+    await loadTree()
+    if (activeFile.value) await loadFile(activeFile.value)
+  } finally {
+    await holdLoading(started)
+    refreshing.value = false
+  }
 }
 
 function opLabel(action) {
-  return { start: '启动', stop: '停止', reload: '重载', restart: '重启', test: '配置测试' }[action] || action
+  return t(`ops.${action}`)
 }
 
 async function operate(action) {
@@ -339,14 +402,14 @@ async function operate(action) {
   try {
     const res = await apiPost(`/instances/${id.value}/ops/${action}`, undefined, { quiet: true })
     if (!res.ok) {
-      errorTitle.value = `${opLabel(action)}失败`
-      errorMessage.value = 'nginx 返回了非零退出码，请查看下方输出'
+      errorTitle.value = t('ops.fail', { action: opLabel(action) })
+      errorMessage.value = t('instance.opFailMsg')
       errorOutput.value = res.output || ''
       errorErrors.value = []
       errorConflicts.value = []
       errorDialog.value = true
     } else {
-      ElMessage.success(`${opLabel(action)}成功`)
+      ElMessage.success(t('ops.success', { action: opLabel(action) }))
     }
     await loadStatus()
   } catch (e) {
@@ -469,6 +532,13 @@ onBeforeUnmount(() => clearInterval(statusTimer))
   border-radius: 9px;
   color: var(--ngp-text-2);
   transition: color 0.2s ease, background-color 0.2s ease;
+}
+/* Element Plus 会去掉首个/末尾标签的左右内边距，导致文字贴边、选中底色被裁切 */
+.instance-tabs :deep(.el-tabs__header .el-tabs__item:nth-child(2)) {
+  padding-left: 16px;
+}
+.instance-tabs :deep(.el-tabs__header .el-tabs__item:last-child) {
+  padding-right: 16px;
 }
 .instance-tabs :deep(.el-tabs__item:hover) {
   color: var(--ngp-brand);

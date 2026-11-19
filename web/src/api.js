@@ -1,4 +1,5 @@
 import { ElMessage } from 'element-plus'
+import i18n, { currentLocale } from './i18n'
 
 const unauthorizedHandlers = new Set()
 
@@ -18,7 +19,7 @@ export async function api(path, { method = 'GET', body, quiet = false } = {}) {
   const options = {
     method,
     credentials: 'same-origin',
-    headers: {}
+    headers: { 'X-Locale': currentLocale() }
   }
   if (body !== undefined) {
     options.headers['Content-Type'] = 'application/json'
@@ -28,7 +29,7 @@ export async function api(path, { method = 'GET', body, quiet = false } = {}) {
   try {
     res = await fetch('/api' + path, options)
   } catch (e) {
-    const err = new ApiError('无法连接后端服务', 0, null)
+    const err = new ApiError(i18n.global.t('errors.network'), 0, null)
     if (!quiet) ElMessage.error(err.message)
     throw err
   }
@@ -37,7 +38,7 @@ export async function api(path, { method = 'GET', body, quiet = false } = {}) {
     unauthorizedHandlers.forEach((fn) => fn())
   }
   if (!res.ok) {
-    const err = new ApiError(data?.message || `请求失败 (${res.status})`, res.status, data?.detail)
+    const err = new ApiError(data?.message || i18n.global.t('errors.requestFailed', { status: res.status }), res.status, data?.detail)
     if (!quiet) ElMessage.error(err.message)
     throw err
   }

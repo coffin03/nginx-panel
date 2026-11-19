@@ -1,13 +1,14 @@
 ﻿<template>
   <el-input v-model="text" :placeholder="placeholder" :disabled="disabled" @update:model-value="onInput">
     <template #append>
-      <el-button :icon="FolderOpened" :loading="busy" :disabled="disabled" @click="browse">浏览</el-button>
+      <el-button :icon="FolderOpened" :loading="busy" :disabled="disabled" @click="browse">{{ t('common.browse') }}</el-button>
     </template>
   </el-input>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { FolderOpened } from '@element-plus/icons-vue'
 import { apiPost } from '../api'
 
@@ -19,6 +20,7 @@ const props = defineProps({
   disabled: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue'])
+const { t } = useI18n()
 
 const text = ref(props.modelValue || '')
 const busy = ref(false)
@@ -45,7 +47,7 @@ async function browse() {
   try {
     const res = await apiPost('/system/pick', {
       mode: props.mode,
-      title: props.title || (props.mode === 'folder' ? '选择文件夹' : '选择文件'),
+      title: props.title || (props.mode === 'folder' ? t('form.pickFolder') : t('form.pickFile')),
       initial: initialDir()
     })
     if (res?.path) {

@@ -1,8 +1,8 @@
 <template>
   <div class="file-tree">
     <div class="tree-tools">
-      <el-input v-model="keyword" size="small" placeholder="搜索文件" clearable :prefix-icon="Search" />
-      <el-checkbox v-model="onlyConfig" size="small">只看配置</el-checkbox>
+      <el-input v-model="keyword" size="small" :placeholder="t('fileTree.search')" clearable :prefix-icon="Search" />
+      <el-checkbox v-model="onlyConfig" size="small">{{ t('fileTree.onlyConfig') }}</el-checkbox>
     </div>
     <div class="tree-list">
       <div v-for="group in groups" :key="group.dir" class="group">
@@ -19,20 +19,21 @@
             <span class="file-name" :title="file.path">{{ file.name }}</span>
           </div>
           <div class="file-tags">
-            <el-tag v-if="file.is_main" size="small" type="success" effect="plain">主</el-tag>
-            <el-tag v-else-if="file.included" size="small" type="primary" effect="plain">含</el-tag>
-            <el-tag v-if="!file.editable" size="small" type="info" effect="plain">只读</el-tag>
+            <el-tag v-if="file.is_main" size="small" type="success" effect="plain">{{ t('fileTree.main') }}</el-tag>
+            <el-tag v-else-if="file.included" size="small" type="primary" effect="plain">{{ t('fileTree.included') }}</el-tag>
+            <el-tag v-if="!file.editable" size="small" type="info" effect="plain">{{ t('fileTree.readonly') }}</el-tag>
             <span class="file-size">{{ humanSize(file.size) }}</span>
           </div>
         </div>
       </div>
-      <div v-if="!groups.length" class="empty-hint">没有匹配的文件</div>
+      <div v-if="!groups.length" class="empty-hint">{{ t('fileTree.empty') }}</div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Document, Search } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -40,6 +41,7 @@ const props = defineProps({
   active: { type: String, default: '' }
 })
 defineEmits(['select'])
+const { t } = useI18n()
 
 const keyword = ref('')
 const onlyConfig = ref(true)

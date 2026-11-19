@@ -1,10 +1,10 @@
 <template>
   <div v-loading="loading" class="form-panel">
     <div class="toolbar sticky">
-      <el-button :icon="Refresh" @click="load">刷新</el-button>
-      <el-button type="primary" :loading="saving" :disabled="!canSave" @click="save">保存表单修改</el-button>
-      <el-checkbox v-model="doReload" size="small">保存后重载 nginx</el-checkbox>
-      <span class="muted hint">表单只覆盖常用指令，其余配置请切换到「文件编辑」</span>
+      <el-button :icon="Refresh" :loading="loading" @click="load">{{ t('common.refresh') }}</el-button>
+      <el-button type="primary" :loading="saving" :disabled="!canSave" @click="save">{{ t('form.save') }}</el-button>
+      <el-checkbox v-model="doReload" size="small">{{ t('form.saveReload') }}</el-checkbox>
+      <span class="muted hint">{{ t('form.tip') }}</span>
     </div>
 
     <el-alert
@@ -12,24 +12,24 @@
       type="warning"
       :closable="false"
       show-icon
-      :title="data.reason || '当前配置存在语法问题，表单已锁定'"
+      :title="data.reason || t('form.readonly')"
       class="readonly-alert"
     />
 
     <template v-if="data && !data.readonly">
-      <div class="section-title">server 块</div>
-      <div v-if="!servers.length" class="empty-hint panel">没有找到 server 块</div>
+      <div class="section-title">{{ t('form.serverSection') }}</div>
+      <div v-if="!servers.length" class="empty-hint panel">{{ t('form.noServer') }}</div>
       <div v-for="server in servers" :key="server.id" class="block-card panel">
         <div class="block-head" @click="server.open = !server.open">
           <el-icon class="chevron" :class="{ open: server.open }"><CaretRight /></el-icon>
           <span class="mono strong">server</span>
           <span class="muted mono">{{ server.file }}:{{ server.line }}</span>
-          <el-tag v-if="server.unknown?.length" size="small" type="info" :title="server.unknown.join('、')">
-            {{ server.unknown.length }} 条指令未纳入表单
+          <el-tag v-if="server.unknown?.length" size="small" type="info" :title="server.unknown.join(', ')">
+            {{ t('form.unknown', { n: server.unknown.length }) }}
           </el-tag>
           <span class="grow"></span>
           <el-tag v-if="server.fields.listen" size="small" effect="plain">
-            {{ server.fields.listen.items.map((i) => i.draft).join(' / ') || '未监听' }}
+            {{ server.fields.listen.items.map((i) => i.draft).join(' / ') || t('form.notListening') }}
           </el-tag>
         </div>
 
@@ -45,14 +45,14 @@
                   <el-input
                     v-model="item.draft"
                     size="small"
-                    :placeholder="group.multi ? '可留空表示删除' : ''"
+                    :placeholder="group.multi ? t('form.emptyMulti') : ''"
                   />
                   <el-button
                     v-if="pickMode(name, 'server')"
                     text
                     size="small"
                     :icon="FolderOpened"
-                    :title="pickMode(name, 'server') === 'folder' ? '选择文件夹' : '选择文件'"
+                    :title="pickMode(name, 'server') === 'folder' ? t('form.pickFolder') : t('form.pickFile')"
                     @click="pickPath(item, pickMode(name, 'server'))"
                   />
                   <el-button
@@ -63,7 +63,7 @@
                     @click="removeItem(group, item)"
                   />
                 </div>
-                <div v-if="!group.items.length" class="muted small">（未设置）</div>
+                <div v-if="!group.items.length" class="muted small">{{ t('form.emptyValue') }}</div>
               </div>
             </template>
           </div>
@@ -72,7 +72,7 @@
             <el-select
               v-model="server.addName"
               size="small"
-              placeholder="新增指令"
+              :placeholder="t('form.addDirective')"
               style="width: 200px"
               popper-class="ngp-field-popper"
             >
@@ -81,18 +81,18 @@
                 <span v-if="hint(opt, 'server')" class="opt-hint">{{ hint(opt, 'server') }}</span>
               </el-option>
             </el-select>
-            <el-button size="small" :disabled="!server.addName" @click="addField(server)">添加字段</el-button>
+            <el-button size="small" :disabled="!server.addName" @click="addField(server)">{{ t('form.addField') }}</el-button>
           </div>
 
           <div v-if="server.locations.length" class="locations">
-            <div class="section-title small-title">location 块</div>
+            <div class="section-title small-title">{{ t('form.locationSection') }}</div>
             <div v-for="loc in server.locations" :key="loc.id" class="block-card nested panel">
               <div class="block-head" @click="loc.open = !loc.open">
                 <el-icon class="chevron" :class="{ open: loc.open }"><CaretRight /></el-icon>
                 <span class="mono strong">location</span>
                 <span class="mono">{{ loc.args.join(' ') }}</span>
-                <el-tag v-if="loc.unknown?.length" size="small" type="info" :title="loc.unknown.join('、')">
-                  {{ loc.unknown.length }} 条指令未纳入表单
+                <el-tag v-if="loc.unknown?.length" size="small" type="info" :title="loc.unknown.join(', ')">
+                  {{ t('form.unknown', { n: loc.unknown.length }) }}
                 </el-tag>
                 <span class="grow"></span>
                 <span class="muted small mono">{{ loc.file }}:{{ loc.line }}</span>
@@ -109,14 +109,14 @@
                         <el-input
                           v-model="item.draft"
                           size="small"
-                          :placeholder="group.multi ? '可留空表示删除' : ''"
+                          :placeholder="group.multi ? t('form.emptyMulti') : ''"
                         />
                         <el-button
                           v-if="pickMode(name, 'location')"
                           text
                           size="small"
                           :icon="FolderOpened"
-                          :title="pickMode(name, 'location') === 'folder' ? '选择文件夹' : '选择文件'"
+                          :title="pickMode(name, 'location') === 'folder' ? t('form.pickFolder') : t('form.pickFile')"
                           @click="pickPath(item, pickMode(name, 'location'))"
                         />
                         <el-button
@@ -127,7 +127,7 @@
                           @click="removeItem(group, item)"
                         />
                       </div>
-                      <div v-if="!group.items.length" class="muted small">（未设置）</div>
+                      <div v-if="!group.items.length" class="muted small">{{ t('form.emptyValue') }}</div>
                     </div>
                   </template>
                 </div>
@@ -135,7 +135,7 @@
                   <el-select
                     v-model="loc.addName"
                     size="small"
-                    placeholder="新增指令"
+                    :placeholder="t('form.addDirective')"
                     style="width: 200px"
                     popper-class="ngp-field-popper"
                   >
@@ -144,7 +144,7 @@
                       <span v-if="hint(opt, 'location')" class="opt-hint">{{ hint(opt, 'location') }}</span>
                     </el-option>
                   </el-select>
-                  <el-button size="small" :disabled="!loc.addName" @click="addField(loc)">添加字段</el-button>
+                  <el-button size="small" :disabled="!loc.addName" @click="addField(loc)">{{ t('form.addField') }}</el-button>
                 </div>
               </div>
             </div>
@@ -152,15 +152,15 @@
         </div>
       </div>
 
-      <div class="section-title">upstream 块</div>
-      <div v-if="!upstreams.length" class="empty-hint panel">没有找到 upstream 块</div>
+      <div class="section-title">{{ t('form.upstreamSection') }}</div>
+      <div v-if="!upstreams.length" class="empty-hint panel">{{ t('form.noUpstream') }}</div>
       <div v-for="up in upstreams" :key="up.id" class="block-card panel">
         <div class="block-head" @click="up.open = !up.open">
           <el-icon class="chevron" :class="{ open: up.open }"><CaretRight /></el-icon>
           <span class="mono strong">upstream</span>
           <span class="mono">{{ up.name }}</span>
-          <el-tag v-if="up.unknown?.length" size="small" type="info" :title="up.unknown.join('、')">
-            {{ up.unknown.length }} 条指令未纳入表单
+          <el-tag v-if="up.unknown?.length" size="small" type="info" :title="up.unknown.join(', ')">
+            {{ t('form.unknown', { n: up.unknown.length }) }}
           </el-tag>
           <span class="grow"></span>
           <span class="muted small mono">{{ up.file }}:{{ up.line }}</span>
@@ -177,7 +177,7 @@
                   <el-input v-model="item.draft" size="small" />
                   <el-button v-if="group.multi" text size="small" :icon="Delete" @click="removeItem(group, item)" />
                 </div>
-                <div v-if="!group.items.length" class="muted small">（未设置）</div>
+                <div v-if="!group.items.length" class="muted small">{{ t('form.emptyValue') }}</div>
               </div>
             </template>
           </div>
@@ -185,7 +185,7 @@
             <el-select
               v-model="up.addName"
               size="small"
-              placeholder="新增指令"
+              :placeholder="t('form.addDirective')"
               style="width: 200px"
               popper-class="ngp-field-popper"
             >
@@ -194,71 +194,34 @@
                 <span v-if="hint(opt, 'upstream')" class="opt-hint">{{ hint(opt, 'upstream') }}</span>
               </el-option>
             </el-select>
-            <el-button size="small" :disabled="!up.addName" @click="addField(up)">添加字段</el-button>
+            <el-button size="small" :disabled="!up.addName" @click="addField(up)">{{ t('form.addField') }}</el-button>
           </div>
         </div>
       </div>
     </template>
 
-    <el-empty v-else-if="!loading && !data" description="暂无数据" />
+    <el-empty v-else-if="!loading && !data" :description="t('form.empty')" />
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { CaretRight, Delete, FolderOpened, Refresh } from '@element-plus/icons-vue'
 import { apiGet, apiPost } from '../api'
+import { holdLoading } from '../utils/busy'
 
 const props = defineProps({
   instanceId: { type: [Number, String], required: true }
 })
 const emit = defineEmits(['applied'])
+const { t, te } = useI18n()
 
-// 表单字段的中文说明：按块类型区分同名指令的含义
-const HINTS = {
-  server: {
-    listen: '监听地址与端口，如 80、443 ssl、127.0.0.1:8080',
-    server_name: '站点域名，可写多个，如 example.com *.example.com',
-    root: '站点根目录，静态文件所在位置',
-    index: '默认首页文件，按顺序查找，如 index.html',
-    client_max_body_size: '允许上传的最大请求体，如 10m；0 表示不限制',
-    ssl_certificate: 'HTTPS 证书文件路径（PEM 格式）',
-    ssl_certificate_key: 'HTTPS 证书私钥文件路径',
-    return: '直接返回状态码或跳转，如 301 https://$host$request_uri',
-    rewrite: 'URL 重写规则，如 ^/old/(.*)$ /new/$1 permanent',
-    charset: '响应字符集，如 utf-8',
-    autoindex: '是否开启目录浏览，on 开启 / off 关闭',
-    access_log: '访问日志路径与格式，off 表示不记录',
-    error_log: '错误日志路径与级别，如 logs/error.log warn'
-  },
-  location: {
-    proxy_pass: '反向代理目标，如 http://127.0.0.1:8080 或 http://backend',
-    root: '该路径对应的文件根目录',
-    index: '默认首页文件，按顺序查找',
-    try_files: '按顺序尝试文件，如 $uri $uri/ /index.html',
-    return: '直接返回状态码或跳转地址',
-    rewrite: 'URL 重写规则，如 ^/old/(.*)$ /new/$1 permanent',
-    alias: '路径别名，把 URL 路径映射到另一个目录',
-    client_max_body_size: '允许上传的最大请求体，如 10m',
-    proxy_read_timeout: '等待后端响应的超时时间，默认 60s',
-    proxy_connect_timeout: '连接后端的超时时间，默认 60s',
-    proxy_send_timeout: '向后端发送请求的超时时间，默认 60s',
-    proxy_set_header: '转发给后端的请求头，如 Host $host',
-    add_header: '给响应添加头部，如 X-Frame-Options SAMEORIGIN'
-  },
-  upstream: {
-    server: '后端节点地址，如 127.0.0.1:8080，可加 weight=1 等参数',
-    keepalive: '与后端保持的空闲长连接数量',
-    least_conn: '负载策略：优先转发给连接数最少的后端',
-    ip_hash: '负载策略：按客户端 IP 固定到同一后端',
-    random: '负载策略：随机选择后端',
-    hash: '负载策略：按指定键做哈希，如 hash $request_uri'
-  }
-}
-
+// 表单字段说明：按块类型区分同名指令的含义，文案在 i18n 的 form.hints 下
 function hint(name, scope) {
-  return HINTS[scope]?.[name] || ''
+  const key = `form.hints.${scope}.${name}`
+  return te(key) ? t(key) : ''
 }
 
 // 需要选择本机路径的指令：folder 为目录选择，file 为文件选择
@@ -276,7 +239,7 @@ async function pickPath(item, mode) {
   try {
     const res = await apiPost('/system/pick', {
       mode,
-      title: mode === 'folder' ? '选择目录' : '选择文件',
+      title: mode === 'folder' ? t('form.pickTitleFolder') : t('form.pickTitleFile'),
       initial: item.draft ? (mode === 'folder' ? item.draft : item.draft.replace(/[\\/][^\\/]*$/, '')) : ''
     })
     if (res?.path) item.draft = res.path
@@ -406,6 +369,7 @@ const dirty = computed(() => snapshot.value !== baseline)
 const canSave = computed(() => !!data.value && !data.value.readonly && dirty.value)
 
 async function load() {
+  const started = Date.now()
   loading.value = true
   try {
     const result = await apiGet(`/instances/${props.instanceId}/form`)
@@ -418,6 +382,7 @@ async function load() {
   } catch (e) {
     /* 已提示 */
   } finally {
+    await holdLoading(started)
     loading.value = false
   }
 }
@@ -449,7 +414,7 @@ function collectBlock(block, edits, inserts) {
       if (item.removed) continue
       const args = splitArgs(item.draft || '')
       if (!group.multi && item.start != null && !args.length && item.args.length) {
-        throw new Error(`指令「${name}」不能为空`)
+        throw new Error(t('form.requiredValue', { name }))
       }
       if (item.start == null) {
         if (args.length) {
@@ -476,7 +441,7 @@ async function save() {
     return
   }
   if (!edits.length && !inserts.length) {
-    ElMessage.info('没有需要保存的修改')
+    ElMessage.info(t('form.noChanges'))
     return
   }
   saving.value = true
@@ -484,10 +449,10 @@ async function save() {
     const res = await apiPost(`/instances/${props.instanceId}/form`, {
       edits,
       inserts,
-      message: '表单修改',
+      message: t('form.message'),
       reload: doReload.value
     })
-    ElMessage.success(res.reloaded ? '已保存并重载 nginx' : '已保存')
+    ElMessage.success(res.reloaded ? t('form.savedReloaded') : t('form.saved'))
     emit('applied', res)
     await load()
   } catch (e) {

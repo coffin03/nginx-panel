@@ -1,33 +1,43 @@
 <template>
-  <div class="app-shell">
-    <header v-if="auth.authenticated" class="app-header">
-      <div class="brand" @click="$router.push('/')">
-        <img class="brand-logo" src="/favicon.svg" alt="logo" />
-        <span class="brand-name">nginx<span class="accent">-panel</span></span>
-      </div>
-      <span class="brand-sub">本地配置管理台</span>
-      <div class="grow" />
-      <ThemeSwitch />
-      <div class="user-chip">
-        <el-icon :size="14"><User /></el-icon>
-        <span class="user-name">{{ auth.username }}</span>
-      </div>
-      <el-button link class="logout" @click="logout">退出登录</el-button>
-    </header>
-    <router-view />
-  </div>
+  <el-config-provider :locale="elLocale">
+    <div class="app-shell">
+      <header v-if="auth.authenticated" class="app-header">
+        <div class="brand" @click="$router.push('/')">
+          <img class="brand-logo" src="/favicon.svg" alt="logo" />
+          <span class="brand-name">nginx<span class="accent">-panel</span></span>
+        </div>
+        <span class="brand-sub">{{ t('app.subtitle') }}</span>
+        <div class="grow" />
+        <LangSwitch />
+        <ThemeSwitch />
+        <div class="user-chip">
+          <el-icon :size="14"><User /></el-icon>
+          <span class="user-name">{{ auth.username }}</span>
+        </div>
+        <el-button link class="logout" :loading="loggingOut" @click="logout">{{ t('app.logout') }}</el-button>
+      </header>
+      <router-view />
+    </div>
+  </el-config-provider>
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
+import enUs from 'element-plus/es/locale/lang/en'
 import { User } from '@element-plus/icons-vue'
+import LangSwitch from './components/LangSwitch.vue'
 import ThemeSwitch from './components/ThemeSwitch.vue'
 import { auth, refreshAuth } from './store'
 import { apiPost, onUnauthorized } from './api'
 
 const router = useRouter()
+const { t, locale } = useI18n()
+const elLocale = computed(() => (locale.value === 'en' ? enUs : zhCn))
+const loggingOut = ref(false)
 
 onMounted(async () => {
   onUnauthorized(() => {
@@ -42,12 +52,14 @@ onMounted(async () => {
 })
 
 async function logout() {
+  loggingOut.value = true
   try {
     await apiPost('/auth/logout')
   } finally {
+    loggingOut.value = false
     auth.authenticated = false
     router.push('/login')
-    ElMessage.success('已退出')
+    ElMessage.success(t('app.loggedOut'))
   }
 }
 </script>

@@ -1,5 +1,6 @@
 <template>
   <div class="login-wrap">
+    <LangSwitch class="lang-float" />
     <ThemeSwitch class="theme-float" />
     <div class="login-shell">
       <aside class="login-aside">
@@ -7,63 +8,63 @@
           <img class="aside-logo" src="/favicon.svg" alt="logo" />
           <span>nginx<em>-panel</em></span>
         </div>
-        <h2 class="aside-title">把 nginx 配置<br />变成看得懂、敢改的界面</h2>
+        <h2 class="aside-title">{{ t('login.slogan1') }}<br />{{ t('login.slogan2') }}</h2>
         <ul class="features">
           <li>
             <el-icon><EditPen /></el-icon>
-            <span>结构化表单与代码编辑双模式</span>
+            <span>{{ t('login.feature1') }}</span>
           </li>
           <li>
             <el-icon><CircleCheck /></el-icon>
-            <span>保存即校验，失败自动还原</span>
+            <span>{{ t('login.feature2') }}</span>
           </li>
           <li>
             <el-icon><Clock /></el-icon>
-            <span>每次改动留快照，随时回滚</span>
+            <span>{{ t('login.feature3') }}</span>
           </li>
           <li>
             <el-icon><Lock /></el-icon>
-            <span>纯本地运行，数据不出本机</span>
+            <span>{{ t('login.feature4') }}</span>
           </li>
         </ul>
-        <div class="aside-foot">127.0.0.1 · 本地管理台</div>
+        <div class="aside-foot">{{ t('login.foot') }}</div>
       </aside>
 
       <section class="login-main">
-        <h1 class="login-title">{{ auth.initialized ? '欢迎回来' : '初始化面板' }}</h1>
+        <h1 class="login-title">{{ auth.initialized ? t('login.welcome') : t('login.setup') }}</h1>
         <p class="login-sub muted">
-          {{ auth.initialized ? '登录后管理本机 nginx 配置与进程' : '首次使用，请创建管理员账号' }}
+          {{ auth.initialized ? t('login.welcomeSub') : t('login.setupSub') }}
         </p>
         <el-form :model="form" label-position="top" @submit.prevent="submit">
-          <el-form-item label="用户名">
+          <el-form-item :label="t('login.username')">
             <el-input v-model="form.username" size="large" autocomplete="username" placeholder="admin" />
           </el-form-item>
-          <el-form-item label="密码">
+          <el-form-item :label="t('login.password')">
             <el-input
               v-model="form.password"
               size="large"
               type="password"
               show-password
               autocomplete="current-password"
-              placeholder="至少 6 位"
+              :placeholder="t('login.passwordPlaceholder')"
               @keyup.enter="submit"
             />
           </el-form-item>
-          <el-form-item v-if="!auth.initialized" label="确认密码">
+          <el-form-item v-if="!auth.initialized" :label="t('login.confirmPassword')">
             <el-input
               v-model="form.confirm"
               size="large"
               type="password"
               show-password
-              placeholder="再次输入密码"
+              :placeholder="t('login.confirmPlaceholder')"
               @keyup.enter="submit"
             />
           </el-form-item>
           <el-button type="primary" size="large" class="submit" :loading="loading" @click="submit">
-            {{ auth.initialized ? '登录' : '创建并进入' }}
+            {{ auth.initialized ? t('login.signIn') : t('login.create') }}
           </el-button>
         </el-form>
-        <p class="hint muted">数据全部保存在本机 SQLite，不联网、不上传。</p>
+        <p class="hint muted">{{ t('login.hint') }}</p>
       </section>
     </div>
   </div>
@@ -72,23 +73,26 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
 import { CircleCheck, Clock, EditPen, Lock } from '@element-plus/icons-vue'
+import LangSwitch from '../components/LangSwitch.vue'
 import ThemeSwitch from '../components/ThemeSwitch.vue'
 import { apiPost } from '../api'
 import { auth, refreshAuth } from '../store'
 
 const router = useRouter()
+const { t } = useI18n()
 const loading = ref(false)
 const form = reactive({ username: 'admin', password: '', confirm: '' })
 
 async function submit() {
   if (!form.username.trim() || !form.password) {
-    ElMessage.warning('请填写用户名和密码')
+    ElMessage.warning(t('login.required'))
     return
   }
   if (!auth.initialized && form.password !== form.confirm) {
-    ElMessage.warning('两次输入的密码不一致')
+    ElMessage.warning(t('login.mismatch'))
     return
   }
   loading.value = true
@@ -97,7 +101,7 @@ async function submit() {
     const path = isSetup ? '/auth/setup' : '/auth/login'
     await apiPost(path, { username: form.username.trim(), password: form.password })
     await refreshAuth()
-    ElMessage.success(isSetup ? '管理员已创建' : '登录成功')
+    ElMessage.success(isSetup ? t('login.created') : t('login.success'))
     router.push('/')
   } catch (e) {
     /* 错误已提示 */
@@ -120,6 +124,11 @@ async function submit() {
   position: absolute;
   top: 22px;
   right: 24px;
+}
+.lang-float {
+  position: absolute;
+  top: 22px;
+  right: 68px;
 }
 .login-shell {
   display: flex;

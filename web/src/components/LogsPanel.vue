@@ -1,32 +1,35 @@
 <template>
   <div class="logs-panel">
     <div class="toolbar">
-      <el-select v-model="current" size="small" placeholder="选择日志文件" style="width: 260px" @change="loadTail">
+      <el-select v-model="current" size="small" :placeholder="t('logs.select')" style="width: 260px" @change="loadTail">
         <el-option v-for="file in files" :key="file.path" :label="`${file.name} (${humanSize(file.size)})`" :value="file.path" />
       </el-select>
       <el-select v-model="lines" size="small" style="width: 110px" @change="loadTail">
-        <el-option v-for="n in [100, 200, 500, 1000, 2000]" :key="n" :label="`${n} 行`" :value="n" />
+        <el-option v-for="n in [100, 200, 500, 1000, 2000]" :key="n" :label="t('logs.lines', { n })" :value="n" />
       </el-select>
-      <el-button size="small" :icon="Refresh" @click="loadAll">刷新</el-button>
-      <el-checkbox v-model="auto" size="small">自动刷新（3 秒）</el-checkbox>
-      <el-input v-model="keyword" size="small" placeholder="过滤关键字" clearable style="width: 180px" />
+      <el-button size="small" :icon="Refresh" :loading="refreshing" @click="loadAll">{{ t('common.refresh') }}</el-button>
+      <el-checkbox v-model="auto" size="small">{{ t('logs.auto') }}</el-checkbox>
+      <el-input v-model="keyword" size="small" :placeholder="t('logs.filter')" clearable style="width: 180px" />
       <span class="grow"></span>
-      <span v-if="truncated" class="muted small">仅显示最后 {{ lines }} 行</span>
+      <span v-if="truncated" class="muted small">{{ t('logs.tailOnly', { n: lines }) }}</span>
     </div>
 
-    <div v-if="!files.length" class="empty-hint panel">没有找到日志文件（logs 目录为空或不存在）</div>
-    <pre v-else class="log-view mono">{{ shownText || '（暂无内容）' }}</pre>
+    <div v-if="!files.length" class="empty-hint panel">{{ t('logs.empty') }}</div>
+    <pre v-else class="log-view mono">{{ shownText || t('logs.noContent') }}</pre>
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Refresh } from '@element-plus/icons-vue'
 import { apiGet } from '../api'
+import { holdLoading } from '../utils/busy'
 
 const props = defineProps({
   instanceId: { type: [Number, String], required: true }
 })
+const { t } = useI18n()
 
 const files = ref([])
 const current = ref('')
@@ -36,6 +39,7 @@ const keyword = ref('')
 const content = ref([])
 const truncated = ref(false)
 const loading = ref(false)
+const refreshing = ref(false)
 let timer = null
 
 const shownText = computed(() => {
@@ -80,8 +84,15 @@ async function loadTail() {
 }
 
 async function loadAll() {
-  await loadFiles()
-  await loadTail()
+  const started = Date.now()
+  refreshing.value = true
+  try {
+    await loadFiles()
+    await loadTail()
+  } finally {
+    await holdLoading(started)
+    refreshing.value = false
+  }
 }
 
 function setupTimer() {

@@ -1,18 +1,18 @@
 <template>
   <el-dropdown trigger="click" @command="setTheme">
-    <button class="theme-btn" type="button" :title="`当前主题：${label}`" aria-label="切换主题">
+    <button class="theme-btn" type="button" :title="t('theme.title', { label })" :aria-label="t('theme.aria')">
       <el-icon :size="17"><component :is="icon" /></el-icon>
     </button>
     <template #dropdown>
       <el-dropdown-menu>
         <el-dropdown-item command="light" :class="{ on: theme.mode === 'light' }">
-          <el-icon><Sunny /></el-icon>浅色
+          <el-icon><Sunny /></el-icon>{{ t('theme.light') }}
         </el-dropdown-item>
         <el-dropdown-item command="dark" :class="{ on: theme.mode === 'dark' }">
-          <el-icon><Moon /></el-icon>深色
+          <el-icon><Moon /></el-icon>{{ t('theme.dark') }}
         </el-dropdown-item>
         <el-dropdown-item command="system" :class="{ on: theme.mode === 'system' }" divided>
-          <el-icon><Monitor /></el-icon>跟随系统
+          <el-icon><Monitor /></el-icon>{{ t('theme.system') }}
         </el-dropdown-item>
       </el-dropdown-menu>
     </template>
@@ -21,11 +21,13 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Monitor, Moon, Sunny } from '@element-plus/icons-vue'
 import { effective, setTheme, theme } from '../theme'
 
+const { t } = useI18n()
 const icon = computed(() => (effective.value === 'dark' ? Moon : theme.mode === 'system' ? Monitor : Sunny))
-const label = computed(() => ({ light: '浅色', dark: '深色', system: '跟随系统' }[theme.mode]))
+const label = computed(() => t(`theme.${theme.mode}`))
 </script>
 
 <style scoped>
