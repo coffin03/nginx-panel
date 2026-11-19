@@ -1,3 +1,8 @@
+import base64
+import io
+import json
+import zipfile
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -99,6 +104,21 @@ def test_setup_and_login_required(client):
     assert client.get("/api/instances").status_code == 200
 
 
+def test_locale_switch_for_api_messages(client):
+    client.post("/api/auth/setup", json={"username": "admin", "password": "secret123"})
+    bad = {"username": "admin", "password": "wrong"}
+
+    zh = client.post("/api/auth/login", json=bad)
+    assert zh.json()["message"] == "用户名或密码错误"
+
+    en = client.post("/api/auth/login", json=bad, headers={"X-Locale": "en"})
+    assert en.json()["message"] == "Incorrect username or password"
+
+    # 未带 X-Locale 时按 Accept-Language 推断
+    en2 = client.post("/api/auth/login", json=bad, headers={"Accept-Language": "en-US,en;q=0.9"})
+    assert en2.json()["message"] == "Incorrect username or password"
+
+
 def test_system_pick_path(admin, monkeypatch):
     from nginx_panel.api import system
 
@@ -188,3 +208,232 @@ def test_form_edit_applies_minimal_patch(admin, nginx_dir, monkeypatch):
     text = (nginx_dir / "conf" / "nginx.conf").read_text(encoding="utf-8")
     assert "listen 8088 reuseport;" in text
     assert "server_name demo.local;" in text
+
+
+TEST_CERT_DER_B64 = (
+    "MIG8MIGmoAUwAwIBAgIBATANBgkqhkiG9w0BAQsFADASMRAwDgYDVQQDDAdUZXN0IENBMB4XDTI1"
+    "MDEwMTAwMDAwMFoXDTM1MDEwMTAwMDAwMFowFjEUMBIGA1UEAwwLZXhhbXBsZS5jb20wEjANBgkq"
+    "hkiG9w0BAQEFAAMBAKMrMCkwJwYDVR0RBCAwHoILZXhhbXBsZS5jb22CD3d3dy5leGFtcGxlLmNv"
+    "bTANBgkqhkiG9w0BAQsFAAMCAAE="
+)
+
+
+def write_cert_pem(path):
+    body = "\n".join(TEST_CERT_DER_B64[i : i + 76] for i in range(0, len(TEST_CERT_DER_B64), 76))
+    path.write_text(f"-----BEGIN CERTIFICATE-----\n{body}\n-----END CERTIFICATE-----\n", encoding="utf-8")
+
+
+def test_certificates_endpoint(admin, nginx_dir, monkeypatch):
+    monkeypatch.setattr("nginx_panel.services.apply.build_adapter", lambda *a, **k: FakeAdapter(True))
+    inst = make_instance(admin, nginx_dir)
+    iid = inst["id"]
+
+    write_cert_pem(nginx_dir / "conf" / "demo.crt")
+    conf = nginx_dir / "conf" / "nginx.conf"
+    conf.write_text(
+        conf.read_text(encoding="utf-8").replace(
+            "server_name demo.local;", "server_name demo.local;\n        ssl_certificate conf/demo.crt;"
+        ),
+        encoding="utf-8",
+    )
+
+    r = admin.get(f"/api/instances/{iid}/certificates")
+    assert r.status_code == 200, r.text
+    certs = r.json()["certificates"]
+    assert len(certs) == 1
+    item = certs[0]
+    assert item["status"] == "ok"
+    assert item["domains"] == ["example.com", "www.example.com"]
+    assert item["issuer"] == "Test CA"
+    assert item["days_left"] > 0
+
+
+def test_renew_certificate(admin, nginx_dir, monkeypatch):
+    monkeypatch.setattr("nginx_panel.services.apply.build_adapter", lambda *a, **k: FakeAdapter(True))
+    inst = make_instance(admin, nginx_dir)
+    iid = inst["id"]
+
+    write_cert_pem(nginx_dir / "conf" / "demo.crt")
+    conf = nginx_dir / "conf" / "nginx.conf"
+    conf.write_text(
+        conf.read_text(encoding="utf-8").replace(
+            "server_name demo.local;", "server_name demo.local;\n        ssl_certificate conf/demo.crt;"
+        ),
+        encoding="utf-8",
+    )
+
+    opts = admin.get(f"/api/instances/{iid}/certificates/renew-options", params={"path": "conf/demo.crt"})
+    assert opts.status_code == 200, opts.text
+    assert any(opt["id"] == "custom" for opt in opts.json()["options"])
+
+    empty = admin.post(f"/api/instances/{iid}/certificates/renew", json={"path": "conf/demo.crt", "command": "  "})
+    assert empty.status_code == 400
+
+    r = admin.post(
+        f"/api/instances/{iid}/certificates/renew",
+        json={"path": "conf/demo.crt", "command": "exit 0", "reload": False},
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["ok"] is True
+    assert data["changed"] is False
+    assert data["before"]["not_after"] == data["after"]["not_after"]
+
+
+def test_create_site_injects_include(admin, nginx_dir, monkeypatch):
+    monkeypatch.setattr("nginx_panel.services.apply.build_adapter", lambda *a, **k: FakeAdapter(True))
+    inst = make_instance(admin, nginx_dir)
+    iid = inst["id"]
+
+    payload = {
+        "server_name": "demo2.local",
+        "kind": "static",
+        "root": str(nginx_dir / "html"),
+        "listen": 8080,
+    }
+    preview = admin.post(f"/api/instances/{iid}/sites/preview", json=payload)
+    assert preview.status_code == 200, preview.text
+    assert "server_name demo2.local;" in preview.json()["content"]
+    assert preview.json()["needs_include"] is True
+
+    r = admin.post(f"/api/instances/{iid}/sites", json=payload)
+    assert r.status_code == 200, r.text
+
+    site = nginx_dir / "conf.d" / "demo2.local.conf"
+    assert site.is_file()
+    assert "include conf.d/*.conf;" in (nginx_dir / "conf" / "nginx.conf").read_text(encoding="utf-8")
+
+    tree = admin.get(f"/api/instances/{iid}/tree").json()
+    rels = [f["rel"] for f in tree["files"]]
+    assert any(rel.endswith("demo2.local.conf") for rel in rels)
+
+    # 重复创建应报错
+    again = admin.post(f"/api/instances/{iid}/sites", json=payload)
+    assert again.status_code == 400
+
+
+def test_sites_list_toggle_delete(admin, nginx_dir, monkeypatch):
+    monkeypatch.setattr("nginx_panel.services.apply.build_adapter", lambda *a, **k: FakeAdapter(True))
+    inst = make_instance(admin, nginx_dir)
+    iid = inst["id"]
+
+    payload = {
+        "server_name": "demo3.local",
+        "kind": "static",
+        "root": str(nginx_dir / "html"),
+        "listen": 8080,
+    }
+    assert admin.post(f"/api/instances/{iid}/sites", json=payload).status_code == 200
+
+    sites = admin.get(f"/api/instances/{iid}/sites").json()
+    assert sites["include_configured"] is True
+    assert len(sites["sites"]) == 1
+    item = sites["sites"][0]
+    assert item["enabled"] is True
+    assert item["loaded"] is True
+    assert item["server_names"] == ["demo3.local"]
+
+    # 停用：重命名为 .conf.disabled
+    r = admin.post(f"/api/instances/{iid}/sites/demo3.local.conf/disable")
+    assert r.status_code == 200, r.text
+    assert not (nginx_dir / "conf.d" / "demo3.local.conf").exists()
+    assert (nginx_dir / "conf.d" / "demo3.local.conf.disabled").is_file()
+    after = admin.get(f"/api/instances/{iid}/sites").json()["sites"][0]
+    assert after["enabled"] is False
+    assert after["loaded"] is False
+
+    # 启用：还原文件名
+    r = admin.post(f"/api/instances/{iid}/sites/demo3.local.conf.disabled/enable")
+    assert r.status_code == 200, r.text
+    assert (nginx_dir / "conf.d" / "demo3.local.conf").is_file()
+
+    # 删除
+    r = admin.delete(f"/api/instances/{iid}/sites/demo3.local.conf")
+    assert r.status_code == 200, r.text
+    assert not (nginx_dir / "conf.d" / "demo3.local.conf").exists()
+    assert admin.get(f"/api/instances/{iid}/sites").json()["sites"] == []
+
+
+def test_checks_endpoint(admin, nginx_dir, monkeypatch):
+    monkeypatch.setattr("nginx_panel.services.apply.build_adapter", lambda *a, **k: FakeAdapter(True))
+    inst = make_instance(admin, nginx_dir)
+    iid = inst["id"]
+
+    conf = nginx_dir / "conf" / "nginx.conf"
+    conf.write_text(
+        conf.read_text(encoding="utf-8").replace("root html;", "root html;\n        root missing-dir;"),
+        encoding="utf-8",
+    )
+
+    r = admin.get(f"/api/instances/{iid}/checks")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    codes = {item["code"] for item in data["items"]}
+    assert "root_missing" in codes
+    assert "gzip_off" in codes
+    assert data["summary"]["warning"] >= 1
+    assert data["summary"]["info"] >= 1
+
+
+def _zip_payload(files: dict, manifest: dict = None) -> str:
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for name, content in files.items():
+            zf.writestr(name, content)
+        zf.writestr("manifest.json", json.dumps(manifest or {"version": 1, "files": []}))
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def test_backup_export_and_import(admin, nginx_dir, monkeypatch):
+    monkeypatch.setattr("nginx_panel.services.apply.build_adapter", lambda *a, **k: FakeAdapter(True))
+    inst = make_instance(admin, nginx_dir)
+    iid = inst["id"]
+
+    r = admin.get(f"/api/instances/{iid}/backup/export")
+    assert r.status_code == 200, r.text
+    assert "attachment" in r.headers["content-disposition"]
+    with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
+        names = zf.namelist()
+        assert "manifest.json" in names
+        assert "files/conf/nginx.conf" in names
+        manifest = json.loads(zf.read("manifest.json"))
+        assert any(item["rel"] == "conf/nginx.conf" for item in manifest["files"])
+        content = zf.read("files/conf/nginx.conf").decode("utf-8")
+
+    data = _zip_payload(
+        {"files/conf/nginx.conf": content.replace("listen 8088;", "listen 9100;")},
+        {"version": 1, "instance": {"name": "备份"}, "files": []},
+    )
+
+    preview = admin.post(f"/api/instances/{iid}/backup/inspect", json={"data": data})
+    assert preview.status_code == 200, preview.text
+    item = next(f for f in preview.json()["files"] if f["rel"] == "conf/nginx.conf")
+    assert item["status"] == "changed"
+    assert preview.json()["summary"]["changed"] == 1
+
+    r = admin.post(f"/api/instances/{iid}/backup/import", json={"data": data, "reload": False})
+    assert r.status_code == 200, r.text
+    assert "listen 9100;" in (nginx_dir / "conf" / "nginx.conf").read_text(encoding="utf-8")
+
+
+def test_backup_rejects_invalid_archive(admin, nginx_dir, monkeypatch):
+    monkeypatch.setattr("nginx_panel.services.apply.build_adapter", lambda *a, **k: FakeAdapter(True))
+    inst = make_instance(admin, nginx_dir)
+    iid = inst["id"]
+
+    bad = base64.b64encode(b"not a zip").decode()
+    r = admin.post(f"/api/instances/{iid}/backup/inspect", json={"data": bad})
+    assert r.status_code == 400
+
+    traversal = _zip_payload({"files/../evil.conf": "x"})
+    r = admin.post(f"/api/instances/{iid}/backup/import", json={"data": traversal})
+    assert r.status_code == 400
+    assert not (nginx_dir.parent / "evil.conf").exists()
+
+    # 缺少 manifest.json 也应拒绝
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("files/conf/nginx.conf", "x")
+    missing = base64.b64encode(buf.getvalue()).decode()
+    r = admin.post(f"/api/instances/{iid}/backup/inspect", json={"data": missing})
+    assert r.status_code == 400
