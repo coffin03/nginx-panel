@@ -68,6 +68,7 @@
 
 ## 五、社区与留存
 
+- [x] `main` 分支保护：合并前需通过 `后端测试` / `前端构建`，禁止 force push 与删除分支
 - [ ] 创建标签：`good first issue`、`help wanted`、`roadmap`、`bug`、`enhancement`
 - [ ] 准备 3–5 个 `good first issue`（文档、翻译、检查规则、UI 细节）
 - [ ] Issue 模板补充英文（现有模板若是中文，海外用户会直接离开）
