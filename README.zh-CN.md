@@ -58,6 +58,15 @@ nginx-panel 面向的是管理真实 `nginx.conf` 及其 `include` 树的用户�
 镜像内含 nginx，面板直接管理容器内的 nginx，适合开箱即用或作为配置预览环境：
 
 ```bash
+docker run -d --name nginx-panel \
+  -p 8090:8090 -p 8080:80 \
+  -v nginx-panel-data:/data \
+  ghcr.io/coffin03/nginx-panel:latest
+```
+
+也可以本地构建：
+
+```bash
 docker compose up -d --build
 ```
 

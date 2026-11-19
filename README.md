@@ -58,6 +58,15 @@ Current version: **0.1.0**. See [CHANGELOG.md](CHANGELOG.md).
 The image contains nginx, so the panel manages a container-local nginx out of the box:
 
 ```bash
+docker run -d --name nginx-panel \
+  -p 8090:8090 -p 8080:80 \
+  -v nginx-panel-data:/data \
+  ghcr.io/coffin03/nginx-panel:latest
+```
+
+To build it yourself instead:
+
+```bash
 docker compose up -d --build
 ```
 
