@@ -45,7 +45,7 @@
 
 ## 三、分发渠道（按优先级）
 
-- [ ] 发布 Docker 镜像（Docker Hub 或 GHCR），README 增加一行 `docker run` 示例。self-hosted 用户通常先看这条。
+- [x] 发布 Docker 镜像到 GHCR（`.github/workflows/docker.yml`，`ghcr.io/coffin03/nginx-panel:0.1.0`），README 已补 `docker run` 示例
 - [ ] 提交 [HelloGitHub](https://hellogithub.com/)（中文项目最有效的早期曝光渠道之一）
 - [ ] 向 awesome 列表提 PR：
       - `awesome-selfhosted`（需满足其收录标准，先读 CONTRIBUTING）
