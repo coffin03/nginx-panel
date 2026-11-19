@@ -11,4 +11,5 @@
 - 历史与回滚：逐行差异查看、一键恢复，外部手动修改自动留档。
 - 日志查看：读取 nginx `logs` 目录，支持自动刷新与关键字过滤。
 - 完全本地：SQLite（WAL）+ bcrypt，首次启动向导创建管理员账号，不联网、不上报。
+- 中英文双语：界面文案与后端提示均支持中文 / English 切换，默认中文并记住选择。
 - 分发方式：Windows 单文件 `nginx-panel.exe`（内嵌 WebView2 桌面窗口）、Docker 镜像、Linux systemd 安装脚本。

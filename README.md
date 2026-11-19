@@ -1,76 +1,82 @@
 # nginx-panel
 
-本地运行的 nginx 可视化管理面板：直接接管你的 nginx 目录，在线编辑配置、一键启停重载、自动备份与回滚。数据全部保存在本地 SQLite，不需要联网，也不需要额外的云端服务。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-> A local-first web UI for nginx: edit configs visually, start/stop/reload nginx, and keep a full local history with one-click rollback. No cloud, no telemetry.
+![License: MIT](https://img.shields.io/badge/license-MIT-green)
+![Platform: Windows | Linux | Docker](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Docker-blue)
+![Python 3.11](https://img.shields.io/badge/python-3.11-3776AB)
+![Vue 3](https://img.shields.io/badge/Vue-3-42b883)
+![i18n: English | 中文](https://img.shields.io/badge/i18n-English%20%7C%20%E4%B8%AD%E6%96%87-brightgreen)
 
-## 功能
+A local-first web UI for nginx: edit the real configuration tree, validate every change with `nginx -t`, reload, and roll back automatically if anything breaks. No cloud, no telemetry.
 
-- **配置可视化编辑**：自动展开 `include`，左侧文件树列出全部可编辑配置；内置 nginx 语法高亮的代码编辑器。
-- **结构化表单**：常用 `server` / `location` / `upstream` 指令可视化管理，与文本编辑双向同步（只改写发生变化的片段，保留原文件格式与注释）。
-- **安全的生效流程**：保存 → 快照入库 → 写盘 → `nginx -t` 校验 → 失败自动还原 → reload → 健康检查 → 异常自动回滚。
-- **进程管理**：启动、停止、重载、重启、配置测试；支持本地进程（Windows / 容器）与 systemd 两种模式。
-- **历史与回滚**：每次应用自动生成快照，可查看逐行差异并一键恢复；外部手动修改也会自动留档。
-- **日志查看**：直接读取 nginx 的 `logs` 目录，支持自动刷新与关键字过滤。
-- **完全本地**：SQLite（WAL）保存数据，bcrypt 保存密码，首次启动向导创建管理员账号。
+> If this project saves your nginx config once, consider giving it a star — it helps others find it.
 
-## 下载（稳定版）
+## Why another nginx panel?
 
-Windows 用户不需要安装 Python / Node，直接下载打包好的便携版：
+nginx-panel is for people who manage the actual `nginx.conf` and its `include` tree, not only a list of proxy hosts.
 
-1. 打开 [Releases](../../releases/latest)，下载 `nginx-panel-<版本>-win64.zip`。
-2. 解压后双击 `nginx-panel.exe` 运行，无需安装（压缩包内含 `LICENSE.txt`）。
-3. 可选校验：把 `SHA256SUMS.txt` 与压缩包放在同一目录，执行
-   `certutil -hashfile nginx-panel-0.1.0-win64.zip SHA256`，与文件中的值比对。
+| Project | Best for | Arbitrary config editing | Applies to a live nginx |
+| --- | --- | --- | --- |
+| **nginx-panel** | Full nginx config management with a safe apply pipeline | Yes, with `include` expansion | Yes, with test / reload / rollback |
+| [Nginx Proxy Manager](https://github.com/NginxProxyManager/nginx-proxy-manager) | Reverse proxy hosts with a simple UI | Partial (per-host snippets) | Yes |
+| [NginxConfig.io](https://github.com/digitalocean/nginxconfig.io) | Generating a new nginx config | Generates a config | No |
+| [nginx-ui](https://github.com/0xJacky/nginx-ui) | General nginx management UI | Yes | Yes |
 
-当前版本：**0.1.0**，变更记录见 [CHANGELOG.md](CHANGELOG.md)。Linux / Docker 部署见下方对应章节。
+Comparison reflects each project's public documentation at the time of writing; corrections are welcome via PR.
 
-## 快速开始（Windows）
+## Features
 
-1. 从上方 Releases 下载并解压，或自行构建（见下文）。
-2. 双击运行，会打开一个独立的桌面窗口（内嵌 WebView2，不经过系统浏览器）；关闭窗口即退出程序。
-3. 首次打开设置管理员账号。
-4. 点击「添加实例」，填写：
-   - **nginx 目录**：例如 `C:\nginx`
-   - **可执行文件**：例如 `C:\nginx\nginx.exe`
-   - **主配置**：`conf\nginx.conf`
-   - **运行模式**：`local`
-5. 之后即可在实例页编辑配置、启动/重载 nginx。
+- **Edit the real config tree.** `include` directives are expanded recursively, every loaded file is editable, and the bundled editor keeps syntax highlighting, indentation and comments intact.
+- **Structured forms with minimal diffs.** Manage common `server` / `location` / `upstream` directives visually. Only the changed fragment is rewritten, so formatting and comments survive.
+- **Safe apply pipeline.** Snapshot → write → `nginx -t` → reload → health check. Any failure restores the previous state automatically, including a new `[emerg]` in `error.log`.
+- **Site wizard and site management.** Generate `conf.d` sites for static files or reverse proxies, mount the `include` automatically, then enable, disable, edit or delete them.
+- **Certificates.** Scan referenced certificates for domains, issuer and expiry; renew with a detected `certbot` / `acme.sh` command and verify the certificate actually changed.
+- **Config checks.** AST-based inspection for duplicate `server_name`, outdated TLS protocols, broken certificate paths, missing web roots, unmounted `conf.d` and common hardening items.
+- **Backup and restore.** Export the main config and its include chain as a zip. Import previews new / overwritten / unchanged files and still runs through validation and rollback.
+- **History, logs and operations.** Every apply creates a snapshot with a line diff and one-click restore; external edits are captured automatically. Logs support auto-refresh and keyword filtering.
+- **Local-first and bilingual.** SQLite (WAL) + bcrypt, first-run admin setup, Chinese / English UI, no network calls.
 
-数据文件位置：exe 同级的 `data\` 目录；如果该目录不可写，会自动落到 `%APPDATA%\nginx-panel`。
+## Quick start
 
-命令行参数通过环境变量控制：
+### Windows (portable)
 
-| 变量 | 说明 | 默认 |
-| --- | --- | --- |
-| `NGINX_PANEL_HOST` | 监听地址 | `127.0.0.1` |
-| `NGINX_PANEL_PORT` | 监听端口 | `8090` |
-| `NGINX_PANEL_DATA_DIR` | 数据目录 | exe 同级 `data` |
-| `NGINX_PANEL_SECRET` | 会话签名密钥 | 自动生成并保存到 `data/secret.key` |
-| `NGINX_PANEL_BROWSER` | 设为 `1` 时改用系统浏览器打开，不弹桌面窗口 | 未设置 |
-| `NGINX_PANEL_NO_BROWSER` | 设为 `1` 时只启动后台服务，不打开窗口 | 未设置 |
+No Python or Node.js required.
 
-桌面窗口依赖系统的 Microsoft Edge WebView2 运行时（Windows 10/11 一般已自带；若缺失，程序会提示并改用浏览器打开）。启动日志写在数据目录的 `logs\app.log`。
+1. Open [Releases](../../releases/latest) and download `nginx-panel-<version>-win64.zip`.
+2. Unzip and run `nginx-panel.exe`. The zip also contains `LICENSE.txt`.
+3. Optionally verify the download: put `SHA256SUMS.txt` next to the zip and run
+   `certutil -hashfile nginx-panel-0.1.0-win64.zip SHA256`.
 
-## 快速开始（Linux）
+The app opens a desktop window with an embedded WebView2 runtime (normally already present on Windows 10/11; if missing, it falls back to the system browser). Closing the window exits the app.
 
-推荐使用一键脚本，把面板安装成 systemd 服务并通过 systemctl 管理本机 nginx：
+Current version: **0.1.0**. See [CHANGELOG.md](CHANGELOG.md).
+
+### Docker
+
+The image contains nginx, so the panel manages a container-local nginx out of the box:
+
+```bash
+docker compose up -d --build
+```
+
+- Panel: <http://127.0.0.1:8090>
+- nginx in the container: <http://127.0.0.1:8080>
+- Data volume: `nginx-panel-data` → `/data`
+
+When adding an instance use: directory `/etc/nginx`, binary `/usr/sbin/nginx`, main config `nginx.conf`, run mode `local`.
+
+To manage your own configuration, uncomment the `./nginx-conf:/etc/nginx` mount in `docker-compose.yml` and put your configs in `./nginx-conf` first.
+
+### Linux (systemd)
 
 ```bash
 sudo bash deploy/install.sh
 ```
 
-脚本会：构建前端（需要 Node.js 18+，也可预先准备好 `web/dist`）→ 安装到 `/opt/nginx-panel` → 创建虚拟环境 → 注册并启动 `nginx-panel.service`。安装完成后访问 `http://服务器IP:8090`。
+The script builds the frontend (Node.js 18+; a prebuilt `web/dist` also works), installs to `/opt/nginx-panel`, creates a virtualenv, then registers and starts `nginx-panel.service`. Visit `http://<server-ip>:8090`.
 
-首次添加实例时填写：
-
-- nginx 目录：`/etc/nginx`
-- 可执行文件：`/usr/sbin/nginx`
-- 主配置：`nginx.conf`
-- 运行模式：`systemd`
-- 服务名：`nginx`
-
-服务管理：
+For the first instance use: directory `/etc/nginx`, binary `/usr/sbin/nginx`, main config `nginx.conf`, run mode `systemd`, service `nginx`.
 
 ```bash
 systemctl status nginx-panel
@@ -78,99 +84,96 @@ systemctl restart nginx-panel
 journalctl -u nginx-panel -f
 ```
 
-## Docker
-
-镜像内含 nginx，面板直接管理容器内的 nginx，适合开箱即用或作为配置预览环境：
+### From source
 
 ```bash
-docker compose up -d --build
-```
-
-- 面板：<http://127.0.0.1:8090>
-- 容器内 nginx：<http://127.0.0.1:8080>
-- 数据卷：`nginx-panel-data` → `/data`
-
-添加实例时填写：目录 `/etc/nginx`、可执行文件 `/usr/sbin/nginx`、主配置 `nginx.conf`、运行模式 `local`。
-
-如果要管理自己的配置，可将 `docker-compose.yml` 中 `./nginx-conf:/etc/nginx` 的挂载取消注释，并先把配置放到 `./nginx-conf`。
-
-## 源码运行（开发）
-
-```bash
-# 后端
+# Backend
 python -m pip install -r server/requirements.txt
 python server/run.py
 
-# 前端（另一个终端，开发服务器会代理 /api 到 8090）
+# Frontend (another terminal; the dev server proxies /api to 8090)
 cd web
 npm install
 npm run dev
 ```
 
-构建 Windows 单文件 exe：
+Build the Windows executable:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File packaging\build-windows.ps1
-# 产物：dist\nginx-panel.exe
+# Output: dist\nginx-panel.exe
 ```
 
-运行测试：
+Run tests:
 
 ```bash
 python -m pytest
 ```
 
-## 发布新版本
+## Configuration
 
-1. 更新 `server/nginx_panel/__init__.py` 的 `__version__`、`web/package.json` 的 `version`，并在 `CHANGELOG.md` 补一条记录。
-2. 提交后打标签并推送：
+When adding an instance:
 
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
+- **nginx directory**: e.g. `C:\nginx` or `/etc/nginx`
+- **Binary**: e.g. `C:\nginx\nginx.exe` or `/usr/sbin/nginx`
+- **Main config**: `conf\nginx.conf` (Windows) or `nginx.conf` (Linux)
+- **Run mode**: `local` (process) or `systemd`
 
-3. GitHub Actions（[.github/workflows/release.yml](.github/workflows/release.yml)）会自动运行测试、构建前端与 exe、生成 `nginx-panel-<版本>-win64.zip` 与 `SHA256SUMS.txt`，并创建对应的 Release。
+Data is stored in `data\` next to the executable; if that directory is not writable it falls back to `%APPDATA%\nginx-panel`.
 
-本地复现同一套产物：
+The following environment variables are supported:
 
-```powershell
-powershell -ExecutionPolicy Bypass -File packaging\make-release.ps1
-# 产物：dist\nginx-panel-<版本>-win64.zip 与 dist\SHA256SUMS.txt
+| Variable | Description | Default |
+| --- | --- | --- |
+| `NGINX_PANEL_HOST` | Listen address | `127.0.0.1` |
+| `NGINX_PANEL_PORT` | Listen port | `8090` |
+| `NGINX_PANEL_DATA_DIR` | Data directory | `data` next to the exe |
+| `NGINX_PANEL_SECRET` | Session signing secret | Generated and saved to `data/secret.key` |
+| `NGINX_PANEL_BROWSER` | Set to `1` to open the system browser instead of the desktop window | unset |
+| `NGINX_PANEL_NO_BROWSER` | Set to `1` to run headless without opening a window | unset |
+
+Startup logs are written to `logs\app.log` inside the data directory.
+
+## How it works
+
+- **Parse, don't regex-replace.** The built-in nginx parser records file, offset and line for every directive. Edits replace the smallest possible text range instead of re-serializing the file, so indentation, alignment and comments are preserved.
+- **`include` expansion.** Starting from the main config, includes are expanded recursively (relative paths and globs supported), and every included file is editable.
+- **Conflict protection.** Saves carry the previous content hash; if another process changed the file, the API returns 409 instead of overwriting it.
+- **Rollback on failure.** Files are backed up before writing. A failed `nginx -t` restores immediately; a missing process or a new `[emerg]` in `error.log` after reload triggers another rollback.
+- **External edits are recorded.** A background watcher creates an `auto` snapshot when the config directory changes outside the panel.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/editor.png" alt="Editing the real nginx.conf with include expansion and syntax highlighting" width="880">
+</p>
+<p align="center">
+  <img src="docs/screenshots/form.png" alt="Structured form for server blocks" width="434">
+  <img src="docs/screenshots/checks.png" alt="Configuration checks" width="434">
+</p>
+
+A 30-second demo (edit → fail `nginx -t` → automatic rollback) is planned for the first public release.
+
+## Project layout
+
+```
+server/          FastAPI backend: nginx parser, include expansion, apply pipeline, REST API
+web/             Vue 3 + Element Plus + CodeMirror 6 frontend
+packaging/       PyInstaller spec and release scripts
+deploy/          Linux install script and systemd unit
+.github/         CI and release workflows
+tests/           Parser and API tests
 ```
 
-## 工作方式
+## Security
 
-- **解析而不是正则替换**：自研 nginx 配置解析器为每条指令记录文件、偏移、行号；编辑时只替换最小文本区间，不重新序列化整个文件，因此缩进、对齐和注释都能保留。
-- **include 展开**：从主配置递归展开 `include`（支持相对路径与通配符），所有被包含的文件都可以直接编辑。
-- **冲突保护**：保存时携带文件内容哈希，磁盘内容被其他程序改过会返回 409，避免覆盖他人修改。
-- **失败即回滚**：写盘前先备份，`nginx -t` 失败立即还原；reload 后进程消失或 error.log 出现新的 `[emerg]` 会再次回滚。
-- **外部修改留档**：后台监听配置目录，检测到非本面板的修改会自动生成 `auto` 快照。
+- The panel listens on `127.0.0.1` by default. If you expose it, put it behind an HTTPS reverse proxy and use a strong password.
+- The Linux install script runs the panel as root because it must write nginx configs and call `systemctl`. Restrict access to trusted networks.
+- Accounts, snapshots and secrets stay local; nothing is uploaded.
 
-## 目录结构
+## Contributing
 
-```
-server/            FastAPI 后端
-  nginx_panel/      nginx 解析器、include 展开、文本补丁、进程适配器
-    services/       实例、快照、生效流水线、表单映射、文件服务
-    api/            REST 接口
-    core/           SQLite、认证、路径与配置、文件监听
-web/               Vue 3 + Element Plus + CodeMirror 6 前端
-packaging/         PyInstaller 打包配置与发布脚本
-deploy/            Linux 安装脚本与 systemd unit
-.github/           CI 与 Release 工作流
-tests/             解析器与接口测试
-```
-
-## 安全说明
-
-- 面板默认只监听 `127.0.0.1`。如需对外开放，请放在带 HTTPS 的反向代理之后，并设置强密码。
-- Linux 安装脚本使用 root 运行面板（需要写 nginx 配置并调用 systemctl）；请把服务器访问权限控制在可信范围内。
-- 所有数据（账号、快照、密钥）都在本地，不会上传到任何地方。
-
-## 参与贡献
-
-欢迎提 Issue 与 PR：先在 [Issues](../../issues) 说明场景或复现步骤，PR 请保持改动聚焦，并确保 `python -m pytest` 与 `npm run build` 通过。版本变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+Issues and PRs are welcome. Please describe the scenario or reproduction steps in an issue first. Keep pull requests focused and make sure `python -m pytest` and `npm run build` pass. See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## License
 
