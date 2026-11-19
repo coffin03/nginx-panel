@@ -4,11 +4,11 @@
 
 ## 一、发布前必须完成（阻断项）
 
-- [ ] 添加远程仓库并推送：`git remote add origin git@github.com:<owner>/nginx-panel.git`，`git push -u origin main`
-- [ ] 仓库 Description（英文，尽量含关键词）：
-      `Local-first nginx web UI: visual config editing, nginx -t validation, auto-rollback, cert renewal. Windows portable / Docker / systemd.`
-- [ ] GitHub Topics：`nginx`、`nginx-ui`、`nginx-config`、`nginx-panel`、`self-hosted`、`devops`、`homelab`、`fastapi`、`vue3`
-- [ ] 上传 Social Preview（1280×640，建议用实例页截图 + 项目名 + 一句话定位）
+- [x] 添加远程仓库并推送：https://github.com/coffin03/nginx-panel
+- [x] 仓库 Description（英文，尽量含关键词）：
+      `Local-first web UI for nginx: edit the real config tree, validate with nginx -t, reload and auto-rollback.`
+- [x] GitHub Topics：`nginx`、`nginx-ui`、`nginx-config`、`self-hosted`、`webui`、`devops`、`docker`、`fastapi`、`vue3`
+- [x] 上传 Social Preview（`docs/screenshots/social-preview.png`，1280×640）
 - [x] 添加真实截图到 `docs/screenshots/`，并已在中英文 README 中引用：
       - `editor.png` / `editor.zh-CN.png` 配置编辑（含 include 展开、语法高亮）
       - `form.png` / `form.zh-CN.png` 结构化表单
@@ -28,15 +28,14 @@
       - 至少一张图或 GIF 在首屏
       - 明确 Windows exe 下载入口
       - Star 引导不超过一句
-- [ ] 仓库公开后，把 CI 徽章补到 README 徽章行：
-      `![CI](https://github.com/<owner>/nginx-panel/actions/workflows/ci.yml/badge.svg)`
-- [ ] 检查 `README.md` / `README.zh-CN.md` 中所有相对链接可用（Releases、Issues、LICENSE、CHANGELOG、deploy、docker-compose）
+- [x] 仓库公开后，把 CI 徽章补到 README 徽章行
+- [x] 检查 `README.md` / `README.zh-CN.md` 中所有相对链接可用（Releases、LICENSE、CHANGELOG、deploy、docker-compose、截图）
 
 ## 二、首个 Release
 
-- [ ] 确认版本号一致：`server/nginx_panel/__init__.py`、`web/package.json`、`CHANGELOG.md`
-- [ ] `git tag v0.1.0 && git push origin v0.1.0`
-- [ ] 确认 Actions 产物：`nginx-panel-0.1.0-win64.zip`、`SHA256SUMS.txt`
+- [x] 确认版本号一致：`server/nginx_panel/__init__.py`、`web/package.json`、`CHANGELOG.md` 均为 0.1.0
+- [x] 打 tag 并推送：`v0.1.0`
+- [x] 确认 Actions 产物：`nginx-panel-0.1.0-win64.zip`、`SHA256SUMS.txt`
 - [ ] Release 说明使用英文为主，附：
       - 一句话定位
       - 3–4 条核心差异
