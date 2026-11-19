@@ -2,6 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
+[![ci](https://github.com/coffin03/nginx-panel/actions/workflows/ci.yml/badge.svg)](https://github.com/coffin03/nginx-panel/actions/workflows/ci.yml)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 ![Platform: Windows | Linux | Docker](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Docker-blue)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-3776AB)
